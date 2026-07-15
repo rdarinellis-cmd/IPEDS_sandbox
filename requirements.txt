@@ -1,0 +1,7 @@
+pandas
+google-cloud-bigquery
+streamlit
+openpyxl
+db-dtypes
+requests
+altair
