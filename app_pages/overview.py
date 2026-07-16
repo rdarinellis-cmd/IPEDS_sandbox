@@ -1,36 +1,46 @@
 import streamlit as st
 
-st.title("🎓 IPEDS Dashboard Overview")
+st.set_page_config(
+    page_title="IPEDS Explorer",
+    page_icon="🎓",
+    layout="wide"
+)
+
+st.title("🎓 IPEDS Data Explorer")
 
 st.markdown("""
-Welcome to the **IPEDS Dashboard**! This application allows you to explore and analyze higher education data from the Integrated Postsecondary Education Data System (IPEDS) using Google BigQuery.
-
-### Available Dashboards
-
-Use the sidebar navigation on the left to explore the different tools:
-
-- **💰 Spending Analyzer**: Compare and analyze spending on Instruction, Academic Support, and Student Services per FTE student.
-- **📊 CIP Market Share**: Analyze degrees awarded by 6-digit CIP code for Michigan public universities, featuring a quadrant chart for Market Share vs. 5-Year CAGR.
+Welcome to the **IPEDS Data Explorer**! This dashboard provides an intuitive, high-performance interface for analyzing higher education data from the National Center for Education Statistics (NCES).
 
 ---
 
-### How to Run This App Locally
+### 🏛️ Data Provenance: What is IPEDS?
 
-If you need to restart this application or run it on another machine, follow these steps in your terminal:
+The **Integrated Postsecondary Education Data System (IPEDS)** is a system of interrelated surveys conducted annually by the U.S. Department of Education’s NCES. IPEDS gathers information from every college, university, and technical and vocational institution that participates in federal student financial aid programs.
 
-1. **Activate the Virtual Environment**:
-   ```bash
-   source environment/bin/activate
-   ```
+The datasets analyzed here include:
+- **Institutional Characteristics (HD):** Directory information, Carnegie classifications, and control (public vs. private).
+- **Fall Enrollment (EF):** Full-time equivalent (FTE) student counts.
+- **Finance (F1/F2/F3):** Detailed accounting of institutional revenues and core expenses (e.g., Instruction, Academic Support, Student Services).
+- **Completions (C):** Degrees awarded, broken down by Classification of Instructional Programs (CIP) codes, award levels, and demographics.
 
-2. **Run the Streamlit App**:
-   ```bash
-   streamlit run app.py
-   ```
+---
 
-*(Alternatively, you can simply run the provided `run_dashboard.sh` script, which automatically handles the environment and launches the app!)*
+### ⚡ Architectural Approach
 
-### Prerequisites
-- Ensure your Google Cloud credentials are set up for BigQuery access (to `project-9a1f71b9-7c50-4df5-adb`).
-- Required Python packages are installed in the `environment` directory (`streamlit`, `pandas`, `google-cloud-bigquery`, `altair`, etc.).
+To maximize performance, portability, and user experience, this dashboard is built on a **modern local-first data architecture**:
+
+1. **Parquet Storage:** Instead of using cloud data warehouses (like BigQuery) we are using local Apache Parquet files (`.parquet`). Parquet is a columnar storage format that provides extreme compression and lightning-fast read speeds.
+2. **In-Memory Pandas & PyArrow:** Data is ingested directly into Pandas DataFrames backed by the PyArrow engine. 
+3. **Streamlit Caching:** Using Streamlit's `@st.cache_data`, the heavy datasets are only loaded into memory once. Subsequent filtering and page navigations hit the memory cache instantly.
+
+Because the data is entirely local and decoupled from cloud credentials, this application is highly portable and resilient to network disruptions.
+
+---
+
+### 🧭 Available Dashboards
+
+Use the sidebar navigation on the left to explore the tools:
+
+- **💰 Spending Analyzer**: Evaluate how institutions allocate their funds across core expenses on a per-student (FTE) basis, allowing for peer benchmarking by Carnegie classification and urbanicity.
+- **📊 CIP Market Share**: Analyze degrees awarded by 6-digit CIP code for Michigan public universities, featuring a strategic quadrant chart plotting Market Share vs. 5-Year Compound Annual Growth Rate (CAGR).
 """)

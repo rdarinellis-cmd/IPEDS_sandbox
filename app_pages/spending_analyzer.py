@@ -1,15 +1,9 @@
 import streamlit as st
 import pandas as pd
-from google.cloud import bigquery
+import os
 
 # Removed st.set_page_config as it is now in app.py
 
-# Cache BigQuery Client
-@st.cache_resource
-def get_bq_client():
-    return bigquery.Client()
-
-client = get_bq_client()
 
 # Academic Year Configuration matching the MS Access database tables
 YEARS_CONFIG = {
@@ -59,16 +53,15 @@ YEARS_CONFIG = {
 
 @st.cache_resource
 def get_available_years():
-    """Detect which years have all required tables in BigQuery."""
+    """Detect which years have all required parquet files in the data directory."""
     try:
-        tables = [t.table_id.lower() for t in client.list_tables("ipeds")]
         available_years = []
         for year, config in YEARS_CONFIG.items():
-            if (config['hd'].lower() in tables and 
-                config['ef'].lower() in tables and 
-                config['f1'].lower() in tables and 
-                config['f2'].lower() in tables and 
-                config['f3'].lower() in tables):
+            if (os.path.exists(f"data/{config['hd']}.parquet") and 
+                os.path.exists(f"data/{config['ef']}.parquet") and 
+                os.path.exists(f"data/{config['f1']}.parquet") and 
+                os.path.exists(f"data/{config['f2']}.parquet") and 
+                os.path.exists(f"data/{config['f3']}.parquet")):
                 available_years.append(year)
         if not available_years:
             return list(YEARS_CONFIG.keys())
@@ -198,54 +191,57 @@ if show_r2:
     carnegies.append(16)
 
 # 4. Fetch and Process Data
+def read_parquet_upper(file_path, cols):
+    df = pd.read_parquet(file_path)
+    df.columns = df.columns.str.upper()
+    return df[cols]
+
 @st.cache_data(ttl=600)
 def load_spending_data(year_cfg, controls_list, carnegies_list, filter_urban):
     if not controls_list or not carnegies_list:
         return pd.DataFrame()
         
-    controls_str = ", ".join(map(str, controls_list))
-    carnegies_str = ", ".join(map(str, carnegies_list))
-    
-    hd_table = f"ipeds.{year_cfg['hd']}"
-    ef_table = f"ipeds.{year_cfg['ef']}"
-    f1_table = f"ipeds.{year_cfg['f1']}"
-    f2_table = f"ipeds.{year_cfg['f2']}"
-    f3_table = f"ipeds.{year_cfg['f3']}"
-    
-    query = f"""
-    SELECT
-      h.UNITID,
-      h.INSTNM,
-      h.CONTROL,
-      h.C21BASIC,
-      h.LOCALE,
-      e.FTE12MN as fte_enrollment,
-      COALESCE(f1.F1C011, f2.F2E011, f3.F3E011) as spend_instruction,
-      COALESCE(f1.F1C051, f2.F2E041, f3.F3E03A1) as spend_academic_support,
-      COALESCE(f1.F1C061, f2.F2E051, f3.F3E03B1) as spend_student_services
-    FROM `{hd_table}` h
-    LEFT JOIN `{ef_table}` e ON h.UNITID = e.UNITID
-    LEFT JOIN `{f1_table}` f1 ON h.UNITID = f1.UNITID
-    LEFT JOIN `{f2_table}` f2 ON h.UNITID = f2.UNITID
-    LEFT JOIN `{f3_table}` f3 ON h.UNITID = f3.UNITID
-    WHERE h.CONTROL IN ({controls_str})
-      AND h.C21BASIC IN ({carnegies_str})
-      AND e.FTE12MN IS NOT NULL
-      AND e.FTE12MN > 0
-    """
-    
-    if filter_urban:
-        query += " AND h.LOCALE IN (11, 12, 13)"
-        
     try:
-        df = client.query(query).to_dataframe()
-        return df
+        # Load necessary columns to save memory
+        hd_df = read_parquet_upper(f"data/{year_cfg['hd']}.parquet", ['UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE'])
+        ef_df = read_parquet_upper(f"data/{year_cfg['ef']}.parquet", ['UNITID', 'FTE12MN'])
+        f1_df = read_parquet_upper(f"data/{year_cfg['f1']}.parquet", ['UNITID', 'F1C011', 'F1C051', 'F1C061'])
+        f2_df = read_parquet_upper(f"data/{year_cfg['f2']}.parquet", ['UNITID', 'F2E011', 'F2E041', 'F2E051'])
+        f3_df = read_parquet_upper(f"data/{year_cfg['f3']}.parquet", ['UNITID', 'F3E011', 'F3E03A1', 'F3E03B1'])
+        
+        # Apply filters
+        hd_df = hd_df[hd_df['CONTROL'].isin(controls_list)]
+        hd_df = hd_df[hd_df['C21BASIC'].isin(carnegies_list)]
+        if filter_urban:
+            hd_df = hd_df[hd_df['LOCALE'].isin([11, 12, 13])]
+            
+        if hd_df.empty:
+            return pd.DataFrame()
+            
+        # Left joins
+        df = hd_df.merge(ef_df, on='UNITID', how='left')
+        df = df.merge(f1_df, on='UNITID', how='left')
+        df = df.merge(f2_df, on='UNITID', how='left')
+        df = df.merge(f3_df, on='UNITID', how='left')
+        
+        # Filter valid FTE
+        df = df[df['FTE12MN'].notna() & (df['FTE12MN'] > 0)]
+        
+        # Coalesce spending columns
+        df['spend_instruction'] = df['F1C011'].combine_first(df['F2E011']).combine_first(df['F3E011'])
+        df['spend_academic_support'] = df['F1C051'].combine_first(df['F2E041']).combine_first(df['F3E03A1'])
+        df['spend_student_services'] = df['F1C061'].combine_first(df['F2E051']).combine_first(df['F3E03B1'])
+        
+        df = df.rename(columns={'FTE12MN': 'fte_enrollment'})
+        
+        return df[['UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE', 'fte_enrollment', 
+                   'spend_instruction', 'spend_academic_support', 'spend_student_services']]
     except Exception as e:
-        st.error(f"Failed to query BigQuery tables ({hd_table}, etc.): {e}")
+        st.error(f"Failed to load Parquet files for {year_cfg['hd']}, etc.: {e}")
         return pd.DataFrame()
 
 # Load data
-with st.spinner(f"Fetching BigQuery records for {selected_year}..."):
+with st.spinner(f"Fetching local records for {selected_year}..."):
     df_raw = load_spending_data(year_config, controls, carnegies, urban_only)
 
 # Tabs Navigation
@@ -368,53 +364,67 @@ with tab_trends:
             selected_ids_str = ", ".join(map(str, selected_ids))
             
             # Fetch data across all available years
-            trend_queries = []
-            for y_name in available_years:
-                cfg = YEARS_CONFIG[y_name]
-                trend_queries.append(f"""
-                SELECT
-                  '{y_name}' as academic_year,
-                  h.INSTNM,
-                  e.FTE12MN as fte_enrollment,
-                  COALESCE(f1.F1C011, f2.F2E011, f3.F3E011) as spend_instruction,
-                  COALESCE(f1.F1C051, f2.F2E041, f3.F3E03A1) as spend_academic_support,
-                  COALESCE(f1.F1C061, f2.F2E051, f3.F3E03B1) as spend_student_services
-                FROM `ipeds.{cfg['hd']}` h
-                LEFT JOIN `ipeds.{cfg['ef']}` e ON h.UNITID = e.UNITID
-                LEFT JOIN `ipeds.{cfg['f1']}` f1 ON h.UNITID = f1.UNITID
-                LEFT JOIN `ipeds.{cfg['f2']}` f2 ON h.UNITID = f2.UNITID
-                LEFT JOIN `ipeds.{cfg['f3']}` f3 ON h.UNITID = f3.UNITID
-                WHERE h.UNITID IN ({selected_ids_str})
-                  AND e.FTE12MN IS NOT NULL
-                  AND e.FTE12MN > 0
-                """)
-                
-            full_trend_query = "\nUNION ALL\n".join(trend_queries)
-            
+            trend_dfs = []
             try:
-                with st.spinner("Compiling historical trends..."):
-                    df_trends_raw = client.query(full_trend_query).to_dataframe()
-                    
-                if not df_trends_raw.empty:
-                    # Calculate metric columns
-                    df_trends = df_trends_raw.copy()
-                    df_trends['Instruction / FTE'] = df_trends['spend_instruction'] / df_trends['fte_enrollment']
-                    df_trends['Academic Support / FTE'] = df_trends['spend_academic_support'] / df_trends['fte_enrollment']
-                    df_trends['Student Services / FTE'] = df_trends['spend_student_services'] / df_trends['fte_enrollment']
-                    
-                    metric_to_plot = st.selectbox(
-                        "Select Spending Metric to Plot",
-                        ["Instruction / FTE", "Academic Support / FTE", "Student Services / FTE"]
-                    )
-                    
-                    # Pivot to align line chart: index=academic_year, columns=INSTNM
-                    df_pivot = df_trends.pivot(index='academic_year', columns='INSTNM', values=metric_to_plot)
-                    # Sort years correctly
-                    df_pivot = df_pivot.sort_index()
-                    
-                    st.line_chart(df_pivot)
-                else:
-                    st.warning("No data returned for selected institutions in other academic years.")
+                with st.spinner("Compiling historical trends from local files..."):
+                    for y_name in available_years:
+                        cfg = YEARS_CONFIG[y_name]
+                        
+                        hd_path = f"data/{cfg['hd']}.parquet"
+                        ef_path = f"data/{cfg['ef']}.parquet"
+                        f1_path = f"data/{cfg['f1']}.parquet"
+                        f2_path = f"data/{cfg['f2']}.parquet"
+                        f3_path = f"data/{cfg['f3']}.parquet"
+                        
+                        if not all(os.path.exists(p) for p in [hd_path, ef_path, f1_path, f2_path, f3_path]):
+                            continue
+                            
+                        hd_df = read_parquet_upper(hd_path, ['UNITID', 'INSTNM'])
+                        hd_df = hd_df[hd_df['UNITID'].isin(selected_ids)]
+                        if hd_df.empty:
+                            continue
+                            
+                        ef_df = read_parquet_upper(ef_path, ['UNITID', 'FTE12MN'])
+                        f1_df = read_parquet_upper(f1_path, ['UNITID', 'F1C011', 'F1C051', 'F1C061'])
+                        f2_df = read_parquet_upper(f2_path, ['UNITID', 'F2E011', 'F2E041', 'F2E051'])
+                        f3_df = read_parquet_upper(f3_path, ['UNITID', 'F3E011', 'F3E03A1', 'F3E03B1'])
+                        
+                        df_y = hd_df.merge(ef_df, on='UNITID', how='left')
+                        df_y = df_y.merge(f1_df, on='UNITID', how='left')
+                        df_y = df_y.merge(f2_df, on='UNITID', how='left')
+                        df_y = df_y.merge(f3_df, on='UNITID', how='left')
+                        
+                        df_y = df_y[df_y['FTE12MN'].notna() & (df_y['FTE12MN'] > 0)]
+                        
+                        if not df_y.empty:
+                            df_y['spend_instruction'] = df_y['F1C011'].combine_first(df_y['F2E011']).combine_first(df_y['F3E011'])
+                            df_y['spend_academic_support'] = df_y['F1C051'].combine_first(df_y['F2E041']).combine_first(df_y['F3E03A1'])
+                            df_y['spend_student_services'] = df_y['F1C061'].combine_first(df_y['F2E051']).combine_first(df_y['F3E03B1'])
+                            df_y = df_y.rename(columns={'FTE12MN': 'fte_enrollment'})
+                            df_y['academic_year'] = y_name
+                            trend_dfs.append(df_y[['academic_year', 'INSTNM', 'fte_enrollment', 'spend_instruction', 'spend_academic_support', 'spend_student_services']])
+                            
+                    if trend_dfs:
+                        df_trends_raw = pd.concat(trend_dfs, ignore_index=True)
+                        # Calculate metric columns
+                        df_trends = df_trends_raw.copy()
+                        df_trends['Instruction / FTE'] = df_trends['spend_instruction'] / df_trends['fte_enrollment']
+                        df_trends['Academic Support / FTE'] = df_trends['spend_academic_support'] / df_trends['fte_enrollment']
+                        df_trends['Student Services / FTE'] = df_trends['spend_student_services'] / df_trends['fte_enrollment']
+                        
+                        metric_to_plot = st.selectbox(
+                            "Select Spending Metric to Plot",
+                            ["Instruction / FTE", "Academic Support / FTE", "Student Services / FTE"]
+                        )
+                        
+                        # Pivot to align line chart: index=academic_year, columns=INSTNM
+                        df_pivot = df_trends.pivot(index='academic_year', columns='INSTNM', values=metric_to_plot)
+                        # Sort years correctly
+                        df_pivot = df_pivot.sort_index()
+                        
+                        st.line_chart(df_pivot)
+                    else:
+                        st.warning("No data returned for selected institutions in other academic years.")
             except Exception as e:
                 st.error(f"Error querying historical trend data: {e}")
         else:
@@ -427,30 +437,29 @@ with tab_dictionary:
     search_query = st.text_input("Search variables (e.g. 'instruction', 'fte', 'tuition'):", "")
     
     if search_query:
-        query_sql = """
-        SELECT year, table_name, table_title, var_name, var_title, long_description, data_type, format
-        FROM `ipeds.metadata_dictionary`
-        WHERE LOWER(var_name) LIKE @search 
-           OR LOWER(var_title) LIKE @search 
-           OR LOWER(long_description) LIKE @search
-           OR LOWER(table_title) LIKE @search
-        ORDER BY year DESC, table_name, var_name
-        LIMIT 100
-        """
-        
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("search", "STRING", f"%{search_query.lower()}%")
-            ]
-        )
-        
         try:
             with st.spinner("Searching definitions..."):
-                df_dict = client.query(query_sql, job_config=job_config).to_dataframe()
+                meta_df = pd.read_parquet('data/metadata_dictionary.parquet')
+                
+                # Make search case-insensitive
+                q = search_query.lower()
+                
+                # Filter where any of the target columns contain the query string
+                mask = (
+                    meta_df['var_name'].fillna('').str.lower().str.contains(q, regex=False) |
+                    meta_df['var_title'].fillna('').str.lower().str.contains(q, regex=False) |
+                    meta_df['long_description'].fillna('').str.lower().str.contains(q, regex=False) |
+                    meta_df['table_title'].fillna('').str.lower().str.contains(q, regex=False)
+                )
+                
+                df_dict = meta_df[mask].copy()
+                
+                if not df_dict.empty:
+                    df_dict = df_dict.sort_values(by=['year', 'table_name', 'var_name'], ascending=[False, True, True]).head(100)
                 
             if not df_dict.empty:
                 st.dataframe(
-                    df_dict,
+                    df_dict[['year', 'table_name', 'table_title', 'var_name', 'var_title', 'long_description', 'data_type', 'format']],
                     column_config={
                         "year": "Year",
                         "table_name": "Table ID",
@@ -467,6 +476,6 @@ with tab_dictionary:
             else:
                 st.info("No matching variables found. Try search terms like 'adm', 'enroll', 'tuition', 'instruction', or 'expenditure'.")
         except Exception as e:
-            st.error(f"Data dictionary table not found or query failed. Have you run the Access Ingestion script? Details: {e}")
+            st.error(f"Data dictionary file not found or search failed. Details: {e}")
     else:
         st.info("Enter a keyword to query variables and their descriptions from the metadata dictionary.")

@@ -1,19 +1,14 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-from google.cloud import bigquery
+import os
 import numpy as np
 
-# Cache the BigQuery client to avoid reinitializing
-@st.cache_resource
-def get_bq_client():
-    return bigquery.Client(project="project-9a1f71b9-7c50-4df5-adb")
+
 
 # Cache the data load
 @st.cache_data(ttl=3600)
 def load_completions_data():
-    client = get_bq_client()
-    
     # Target 15 Michigan public 4-year universities
     schools = [
         'Central Michigan University',
@@ -32,43 +27,79 @@ def load_completions_data():
         'Wayne State University',
         'Western Michigan University'
     ]
-    schools_formatted = ", ".join([f"'{s}'" for s in schools])
     
-    query = f"""
-    WITH inst AS (
-        SELECT UNITID, INSTNM
-        FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.hd2024`
-        WHERE INSTNM IN ({schools_formatted})
-    ),
-    comp AS (
-        SELECT '2019' AS year, UNITID, CIPCODE, AWLEVEL, CTOTALT FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.c2019_a` WHERE MAJORNUM = 1 AND LENGTH(CIPCODE) = 7 UNION ALL
-        SELECT '2020' AS year, UNITID, CIPCODE, AWLEVEL, CTOTALT FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.c2020_a` WHERE MAJORNUM = 1 AND LENGTH(CIPCODE) = 7 UNION ALL
-        SELECT '2021' AS year, UNITID, CIPCODE, AWLEVEL, CTOTALT FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.c2021_a` WHERE MAJORNUM = 1 AND LENGTH(CIPCODE) = 7 UNION ALL
-        SELECT '2022' AS year, UNITID, CIPCODE, AWLEVEL, CTOTALT FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.c2022_a` WHERE MAJORNUM = 1 AND LENGTH(CIPCODE) = 7 UNION ALL
-        SELECT '2023' AS year, UNITID, CIPCODE, AWLEVEL, CTOTALT FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.c2023_a` WHERE MAJORNUM = 1 AND LENGTH(CIPCODE) = 7 UNION ALL
-        SELECT '2024' AS year, UNITID, CIPCODE, AWLEVEL, CTOTALT FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.c2024_a` WHERE MAJORNUM = 1 AND LENGTH(CIPCODE) = 7
-    )
-    SELECT c.year, i.INSTNM as institution, c.CIPCODE as cip_code, c.AWLEVEL as award_level, c.CTOTALT as total_degrees
-    FROM comp c
-    JOIN inst i ON c.UNITID = i.UNITID
-    """
-    return client.query(query).to_dataframe()
+    try:
+        # Load hd2024 to get the UNITIDs for these schools
+        inst_df = pd.read_parquet('data/hd2024.parquet')
+        inst_df.columns = inst_df.columns.str.upper()
+        inst_df = inst_df[['UNITID', 'INSTNM']]
+        
+        inst_df = inst_df[inst_df['INSTNM'].isin(schools)]
+        
+        valid_unitids = inst_df['UNITID'].tolist()
+        
+        comp_dfs = []
+        for year in ['2019', '2020', '2021', '2022', '2023', '2024']:
+            file_path = f"data/c{year}_a.parquet"
+            if not os.path.exists(file_path):
+                continue
+                
+            df = pd.read_parquet(file_path)
+            df.columns = df.columns.str.upper()
+            df = df[['UNITID', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT']]
+            
+            # MAJORNUM = 1 and length(CIPCODE) = 7
+            df = df[df['MAJORNUM'] == 1]
+            df = df[df['CIPCODE'].astype(str).str.len() == 7]
+            
+            # Filter to our targeted institutions early to save memory
+            df = df[df['UNITID'].isin(valid_unitids)]
+            df['year'] = year
+            
+            comp_dfs.append(df)
+            
+        if not comp_dfs:
+            return pd.DataFrame()
+            
+        comp_all = pd.concat(comp_dfs, ignore_index=True)
+        
+        # Merge with institution names
+        final_df = comp_all.merge(inst_df, on='UNITID', how='inner')
+        final_df = final_df.rename(columns={
+            'INSTNM': 'institution',
+            'CIPCODE': 'cip_code',
+            'AWLEVEL': 'award_level',
+            'CTOTALT': 'total_degrees'
+        })
+        
+        return final_df[['year', 'institution', 'cip_code', 'award_level', 'total_degrees']]
+    except Exception as e:
+        st.error(f"Failed to load completions data from local files: {e}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def load_cip_dictionary():
-    client = get_bq_client()
-    query = """
-    SELECT 
-        REPLACE(REPLACE(cipfamily, '="', ''), '"', '') as cip_family,
-        REPLACE(REPLACE(cipcode, '="', ''), '"', '') as cip_code,
-        ciptitle
-    FROM `project-9a1f71b9-7c50-4df5-adb.ipeds.cip_dictionary`
-    """
-    return client.query(query).to_dataframe()
+    try:
+        df = pd.read_parquet('data/cip_dictionary.parquet')
+        
+        if 'cipfamily' in df.columns:
+            df['cip_family'] = df['cipfamily'].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
+        else:
+            df['cip_family'] = ""
+            
+        if 'cipcode' in df.columns:
+            df['cip_code'] = df['cipcode'].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
+        else:
+            df['cip_code'] = ""
+            
+        return df[['cip_family', 'cip_code', 'ciptitle']]
+    except Exception as e:
+        st.error(f"Failed to load CIP dictionary from local files: {e}")
+        return pd.DataFrame()
 
 st.title("Michigan Public Universities: CIP Market Share & CAGR")
 
-with st.spinner("Loading data from BigQuery..."):
+with st.spinner("Loading local data..."):
     df = load_completions_data()
     cip_dict = load_cip_dictionary()
 
