@@ -43,7 +43,7 @@ size_col = 'Total Students (Year 1)' if is_y1 else 'Total Students (Year 5)'
 max_size = int(df[size_col].max()) if not pd.isna(df[size_col].max()) else 100
 min_cohort = st.sidebar.slider("Minimum Cohort Size", 0, max_size, 30)
 
-hide_outliers = st.sidebar.checkbox("Hide Chart Outliers", value=False, help="Removes extreme values to improve axis scaling.")
+hide_outliers = st.sidebar.checkbox("Hide Chart Outliers", value=True, help="Removes extreme values to improve axis scaling.")
 
 search_term = st.sidebar.text_input("Search CIP Code or Title", "")
 
