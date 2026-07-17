@@ -128,6 +128,16 @@ def main():
         axis=1
     )
 
+    rename_dict = {
+        'Total Students (Year 1)': 'Total graduates (Year 1)',
+        'Total Students (Year 5)': 'Total graduates (Year 5)',
+        '% Employed in Michigan (Year 1)': '% Graduates Employed in Michigan (Year 1)',
+        '% Employed in Michigan (Year 5)': '% Graduates Employed in Michigan (Year 5)',
+        'Median Salary in Michigan (Year 1)': 'Median Graduate Salary in Michigan (Year 1)',
+        'Median Salary in Michigan (Year 5)': 'Median Graduate Salary in Michigan (Year 5)'
+    }
+    df_final = df_final.rename(columns=rename_dict)
+
     print("Saving to Parquet...")
     os.makedirs('data', exist_ok=True)
     # Save outputs

@@ -39,7 +39,7 @@ if not default_awards:
 
 selected_awards = st.sidebar.multiselect("Degree Award Level", available_awards, default=default_awards)
 
-size_col = 'Total Students (Year 1)' if is_y1 else 'Total Students (Year 5)'
+size_col = 'Total graduates (Year 1)' if is_y1 else 'Total graduates (Year 5)'
 max_size = int(df[size_col].max()) if not pd.isna(df[size_col].max()) else 100
 min_cohort = st.sidebar.slider("Minimum Cohort Size", 0, max_size, 30)
 
@@ -57,8 +57,8 @@ if search_term:
     filtered_df = filtered_df[search_mask]
 
 # Define columns based on timeline
-emp_col = '% Employed in Michigan (Year 1)' if is_y1 else '% Employed in Michigan (Year 5)'
-wage_col = 'Median Salary in Michigan (Year 1)' if is_y1 else 'Median Salary in Michigan (Year 5)'
+emp_col = '% Graduates Employed in Michigan (Year 1)' if is_y1 else '% Graduates Employed in Michigan (Year 5)'
+wage_col = 'Median Graduate Salary in Michigan (Year 1)' if is_y1 else 'Median Graduate Salary in Michigan (Year 5)'
 quad_col = 'Y1_Quadrant' if is_y1 else 'Y5_Quadrant'
 prem_doll_col = 'Y1_Wage_Premium_$' if is_y1 else 'Y5_Wage_Premium_$'
 prem_pct_col = 'Y1_Wage_Premium_%' if is_y1 else 'Y5_Wage_Premium_%'
@@ -108,9 +108,9 @@ else:
             quad_col: False
         },
         labels={
-            emp_col: "WSU % Employed in Michigan",
+            emp_col: "WSU % Graduates Employed in Michigan",
             y_col: y_label,
-            size_col: "Cohort Size"
+            size_col: "Total Graduates"
         },
         title=f"WSU CIP Performance ({timeline})"
     )
