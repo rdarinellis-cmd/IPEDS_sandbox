@@ -191,10 +191,16 @@ if show_r2:
     carnegies.append(16)
 
 # 4. Fetch and Process Data
+import pyarrow.parquet as pq
+
 def read_parquet_upper(file_path, cols):
-    df = pd.read_parquet(file_path)
+    schema = pq.read_schema(file_path)
+    col_map = {name.upper(): name for name in schema.names}
+    actual_cols = [col_map.get(c, c) for c in cols]
+    
+    df = pd.read_parquet(file_path, columns=actual_cols)
     df.columns = df.columns.str.upper()
-    return df[cols]
+    return df
 
 @st.cache_data(ttl=600)
 def load_spending_data(year_cfg, controls_list, carnegies_list, filter_urban):

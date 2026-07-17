@@ -1,10 +1,6 @@
 import streamlit as st
 
-st.set_page_config(
-    page_title="IPEDS Explorer",
-    page_icon="🎓",
-    layout="wide"
-)
+
 
 st.title("🎓 IPEDS Data Explorer")
 

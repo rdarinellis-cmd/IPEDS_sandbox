@@ -3,7 +3,16 @@ import pandas as pd
 import altair as alt
 import os
 import numpy as np
+import pyarrow.parquet as pq
 
+def read_parquet_upper(file_path, cols):
+    schema = pq.read_schema(file_path)
+    col_map = {name.upper(): name for name in schema.names}
+    actual_cols = [col_map.get(c, c) for c in cols]
+    
+    df = pd.read_parquet(file_path, columns=actual_cols)
+    df.columns = df.columns.str.upper()
+    return df
 
 
 # Cache the data load
@@ -30,9 +39,7 @@ def load_completions_data():
     
     try:
         # Load hd2024 to get the UNITIDs for these schools
-        inst_df = pd.read_parquet('data/hd2024.parquet')
-        inst_df.columns = inst_df.columns.str.upper()
-        inst_df = inst_df[['UNITID', 'INSTNM']]
+        inst_df = read_parquet_upper('data/hd2024.parquet', ['UNITID', 'INSTNM'])
         
         inst_df = inst_df[inst_df['INSTNM'].isin(schools)]
         
@@ -44,9 +51,7 @@ def load_completions_data():
             if not os.path.exists(file_path):
                 continue
                 
-            df = pd.read_parquet(file_path)
-            df.columns = df.columns.str.upper()
-            df = df[['UNITID', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT']]
+            df = read_parquet_upper(file_path, ['UNITID', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT'])
             
             # MAJORNUM = 1 and length(CIPCODE) = 7
             df = df[df['MAJORNUM'] == 1]
