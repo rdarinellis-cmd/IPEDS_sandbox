@@ -17,6 +17,7 @@ COLOR_MAP = {
 
 @st.cache_data
 def load_data():
+    # Cache busted to load new column names
     df = pd.read_parquet('data/wsu_cip_outcomes.parquet')
     df_soc = pd.read_parquet('data/statewide_soc_benchmarks.parquet')
     return df, df_soc
