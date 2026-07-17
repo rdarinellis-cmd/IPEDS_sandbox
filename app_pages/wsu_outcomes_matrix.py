@@ -41,7 +41,9 @@ selected_awards = st.sidebar.multiselect("Degree Award Level", available_awards,
 
 size_col = 'Total Students (Year 1)' if is_y1 else 'Total Students (Year 5)'
 max_size = int(df[size_col].max()) if not pd.isna(df[size_col].max()) else 100
-min_cohort = st.sidebar.slider("Minimum Cohort Size", 0, max_size, 10)
+min_cohort = st.sidebar.slider("Minimum Cohort Size", 0, max_size, 30)
+
+hide_outliers = st.sidebar.checkbox("Hide Chart Outliers", value=False, help="Removes extreme values to improve axis scaling.")
 
 search_term = st.sidebar.text_input("Search CIP Code or Title", "")
 
@@ -77,8 +79,18 @@ else:
     # Calculate medians for reference lines
     median_emp = plot_df[emp_col].median()
     
+    # Handle outliers if checked
+    chart_df = plot_df.copy()
+    if hide_outliers and not chart_df.empty:
+        Q1 = chart_df[y_col].quantile(0.25)
+        Q3 = chart_df[y_col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        chart_df = chart_df[(chart_df[y_col] >= lower_bound) & (chart_df[y_col] <= upper_bound)]
+    
     fig = px.scatter(
-        plot_df,
+        chart_df,
         x=emp_col,
         y=y_col,
         size=size_col,
@@ -88,7 +100,7 @@ else:
         hover_data={
             "CIP Code": True,
             "Award": True,
-            size_col: True,
+            size_col: ":,.0f",
             wage_col: ":$,.0f",
             "State_Annual_Entry_Wage": ":$,.0f",
             emp_col: ":.1%",
@@ -158,7 +170,8 @@ if not filtered_df.empty:
         wage_col: "${:,.0f}",
         'State_Annual_Entry_Wage': "${:,.0f}",
         prem_doll_col: "${:,.0f}",
-        prem_pct_col: "{:.1%}"
+        prem_pct_col: "{:.1%}",
+        size_col: "{:,.0f}"
     }), use_container_width=True)
 
 # View 3: SOC Alignment Inspector
@@ -183,6 +196,7 @@ if not filtered_df.empty:
             st.dataframe(wsu_actuals[['Award', size_col, emp_col, wage_col]].style.format({
                 emp_col: "{:.1%}",
                 wage_col: "${:,.0f}",
+                size_col: "{:,.0f}"
             }))
         
         st.markdown("**Underlying Target Occupations (SOC) in Michigan**")
