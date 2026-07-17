@@ -40,17 +40,50 @@ if not default_awards:
 
 selected_awards = st.sidebar.multiselect("Degree Award Level", available_awards, default=default_awards)
 
+# Filter out aggregate 2-digit CIP families (e.g. 52.0000) to avoid double counting totals
+filtered_df = df[~df['CIP Code'].astype(str).str.endswith('.0000')].copy()
+
+# Filter by award first
+filtered_df = filtered_df[filtered_df['Award'].isin(selected_awards)]
+
 size_col = 'Total graduates (Year 1)' if is_y1 else 'Total graduates (Year 5)'
-max_size = int(df[size_col].max()) if not pd.isna(df[size_col].max()) else 100
-min_cohort = st.sidebar.slider("Minimum Cohort Size", 0, max_size, 30)
+
+# Calculate max size based on the specific programs selected
+max_size = int(filtered_df[size_col].max()) if not filtered_df.empty and not pd.isna(filtered_df[size_col].max()) else 100
+
+# Ensure default doesn't exceed max
+default_min = min(30, max_size)
+
+# Histogram of cohort sizes
+if not filtered_df.empty:
+    st.sidebar.markdown("**Cohort Size Distribution**")
+    fig_hist = px.histogram(
+        filtered_df, 
+        x=size_col, 
+        nbins=20, 
+        color_discrete_sequence=[WSU_GREEN]
+    )
+    fig_hist.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=80,
+        xaxis_title=None,
+        yaxis_title=None,
+        xaxis=dict(showticklabels=False),
+        yaxis=dict(showticklabels=False),
+        showlegend=False,
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)"
+    )
+    st.sidebar.plotly_chart(fig_hist, use_container_width=True, config={'displayModeBar': False})
+
+cohort_range = st.sidebar.slider("Cohort Size Range", 0, max_size, (default_min, max_size))
 
 hide_outliers = st.sidebar.checkbox("Hide Chart Outliers", value=True, help="Removes extreme values to improve axis scaling.")
 
 search_term = st.sidebar.text_input("Search CIP Code or Title", "")
 
-# Filter Data
-filtered_df = df[df['Award'].isin(selected_awards)]
-filtered_df = filtered_df[filtered_df[size_col] >= min_cohort]
+# Apply cohort size filter
+filtered_df = filtered_df[(filtered_df[size_col] >= cohort_range[0]) & (filtered_df[size_col] <= cohort_range[1])]
 
 if search_term:
     search_mask = filtered_df['CIP Code'].str.contains(search_term, case=False, na=False) | \
