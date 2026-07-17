@@ -17,7 +17,7 @@ COLOR_MAP = {
 
 @st.cache_data
 def load_data():
-    # Cache busted to load new column names
+    # Cache busted to load new column names and drop imputations
     df = pd.read_parquet('data/wsu_cip_outcomes.parquet')
     df_soc = pd.read_parquet('data/statewide_soc_benchmarks.parquet')
     return df, df_soc
@@ -166,16 +166,19 @@ st.subheader("Quadrant Deep-Dive & Data Explorer")
 
 if not filtered_df.empty:
     quad_counts = filtered_df.groupby(quad_col)[size_col].sum().fillna(0)
+    ghost_students = int(filtered_df[filtered_df['is_underrepresented']]['IPEDS_Total_Degrees'].sum())
     
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.metric("⭐ Stars Students", int(quad_counts.get("Star", 0)))
     with c2:
-        st.metric("🚜 Workhorse Students", int(quad_counts.get("Workhorse", 0)))
+        st.metric("🚜 Workhorses", int(quad_counts.get("Workhorse", 0)))
     with c3:
-        st.metric("💎 Hidden Gem Students", int(quad_counts.get("Hidden Gem", 0)))
+        st.metric("💎 Hidden Gems", int(quad_counts.get("Hidden Gem", 0)))
     with c4:
-        st.metric("🌱 Opportunity Students", int(quad_counts.get("Strategic Opportunity", 0)))
+        st.metric("🌱 Opportunities", int(quad_counts.get("Strategic Opportunity", 0)))
+    with c5:
+        st.metric("👻 Ghost Degrees", ghost_students, help="High-wage degrees produced by WSU (per IPEDS) that are largely missing or suppressed in Pathfinder tracking.")
 
     st.markdown("### Data Explorer")
     quad_filter = st.selectbox("Filter by Quadrant", ["All"] + list(COLOR_MAP.keys()))
@@ -185,8 +188,8 @@ if not filtered_df.empty:
         display_df = display_df[display_df[quad_col] == quad_filter]
         
     display_cols = [
-        'CIP Code', 'CIPTitle', 'Award', size_col, emp_col, wage_col, 
-        'State_Annual_Entry_Wage', prem_doll_col, prem_pct_col, quad_col, 'is_imputed'
+        'CIP Code', 'CIPTitle', 'Award', size_col, 'IPEDS_Total_Degrees', emp_col, wage_col, 
+        'State_Annual_Entry_Wage', prem_doll_col, prem_pct_col, quad_col, 'is_suppressed', 'is_underrepresented'
     ]
     
     # Download button
@@ -199,13 +202,18 @@ if not filtered_df.empty:
         key='download-csv'
     )
     
-    st.dataframe(display_df[display_cols].style.format({
+    def highlight_underrepresented(row):
+        color = 'background-color: rgba(255, 69, 0, 0.2)' if row.get('is_underrepresented', False) else ''
+        return [color] * len(row)
+    
+    st.dataframe(display_df[display_cols].style.apply(highlight_underrepresented, axis=1).format({
         emp_col: "{:.1%}",
         wage_col: "${:,.0f}",
         'State_Annual_Entry_Wage': "${:,.0f}",
         prem_doll_col: "${:,.0f}",
         prem_pct_col: "{:.1%}",
-        size_col: "{:,.0f}"
+        size_col: "{:,.0f}",
+        'IPEDS_Total_Degrees': "{:,.0f}"
     }), use_container_width=True)
 
 # View 3: SOC Alignment Inspector
