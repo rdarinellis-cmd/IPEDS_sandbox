@@ -39,7 +39,7 @@ def load_completions_data():
     
     try:
         # Load hd2024 to get the UNITIDs for these schools
-        inst_df = read_parquet_upper('data/hd2024.parquet', ['UNITID', 'INSTNM'])
+        inst_df = read_parquet_upper('data/raw/ipeds/hd2024.parquet', ['UNITID', 'INSTNM'])
         
         inst_df = inst_df[inst_df['INSTNM'].isin(schools)]
         
@@ -47,7 +47,7 @@ def load_completions_data():
         
         comp_dfs = []
         for year in ['2019', '2020', '2021', '2022', '2023', '2024']:
-            file_path = f"data/c{year}_a.parquet"
+            file_path = f"data/raw/ipeds/c{year}_a.parquet"
             if not os.path.exists(file_path):
                 continue
                 
@@ -81,11 +81,11 @@ def load_completions_data():
     except Exception as e:
         st.error(f"Failed to load completions data from local files: {e}")
         return pd.DataFrame()
-
+ 
 @st.cache_data(ttl=3600)
 def load_cip_dictionary():
     try:
-        df = pd.read_parquet('data/cip_dictionary.parquet')
+        df = pd.read_parquet('data/raw/ipeds/cip_dictionary.parquet')
         
         if 'cipfamily' in df.columns:
             df['cip_family'] = df['cipfamily'].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)

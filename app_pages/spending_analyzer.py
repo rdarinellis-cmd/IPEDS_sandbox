@@ -57,11 +57,11 @@ def get_available_years():
     try:
         available_years = []
         for year, config in YEARS_CONFIG.items():
-            if (os.path.exists(f"data/{config['hd']}.parquet") and 
-                os.path.exists(f"data/{config['ef']}.parquet") and 
-                os.path.exists(f"data/{config['f1']}.parquet") and 
-                os.path.exists(f"data/{config['f2']}.parquet") and 
-                os.path.exists(f"data/{config['f3']}.parquet")):
+            if (os.path.exists(f"data/raw/ipeds/{config['hd']}.parquet") and 
+                os.path.exists(f"data/raw/ipeds/{config['ef']}.parquet") and 
+                os.path.exists(f"data/raw/ipeds/{config['f1']}.parquet") and 
+                os.path.exists(f"data/raw/ipeds/{config['f2']}.parquet") and 
+                os.path.exists(f"data/raw/ipeds/{config['f3']}.parquet")):
                 available_years.append(year)
         if not available_years:
             return list(YEARS_CONFIG.keys())
@@ -209,11 +209,11 @@ def load_spending_data(year_cfg, controls_list, carnegies_list, filter_urban):
         
     try:
         # Load necessary columns to save memory
-        hd_df = read_parquet_upper(f"data/{year_cfg['hd']}.parquet", ['UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE'])
-        ef_df = read_parquet_upper(f"data/{year_cfg['ef']}.parquet", ['UNITID', 'FTE12MN'])
-        f1_df = read_parquet_upper(f"data/{year_cfg['f1']}.parquet", ['UNITID', 'F1C011', 'F1C051', 'F1C061'])
-        f2_df = read_parquet_upper(f"data/{year_cfg['f2']}.parquet", ['UNITID', 'F2E011', 'F2E041', 'F2E051'])
-        f3_df = read_parquet_upper(f"data/{year_cfg['f3']}.parquet", ['UNITID', 'F3E011', 'F3E03A1', 'F3E03B1'])
+        hd_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['hd']}.parquet", ['UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE'])
+        ef_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['ef']}.parquet", ['UNITID', 'FTE12MN'])
+        f1_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['f1']}.parquet", ['UNITID', 'F1C011', 'F1C051', 'F1C061'])
+        f2_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['f2']}.parquet", ['UNITID', 'F2E011', 'F2E041', 'F2E051'])
+        f3_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['f3']}.parquet", ['UNITID', 'F3E011', 'F3E03A1', 'F3E03B1'])
         
         # Apply filters
         hd_df = hd_df[hd_df['CONTROL'].isin(controls_list)]
@@ -376,11 +376,11 @@ with tab_trends:
                     for y_name in available_years:
                         cfg = YEARS_CONFIG[y_name]
                         
-                        hd_path = f"data/{cfg['hd']}.parquet"
-                        ef_path = f"data/{cfg['ef']}.parquet"
-                        f1_path = f"data/{cfg['f1']}.parquet"
-                        f2_path = f"data/{cfg['f2']}.parquet"
-                        f3_path = f"data/{cfg['f3']}.parquet"
+                        hd_path = f"data/raw/ipeds/{cfg['hd']}.parquet"
+                        ef_path = f"data/raw/ipeds/{cfg['ef']}.parquet"
+                        f1_path = f"data/raw/ipeds/{cfg['f1']}.parquet"
+                        f2_path = f"data/raw/ipeds/{cfg['f2']}.parquet"
+                        f3_path = f"data/raw/ipeds/{cfg['f3']}.parquet"
                         
                         if not all(os.path.exists(p) for p in [hd_path, ef_path, f1_path, f2_path, f3_path]):
                             continue
@@ -445,7 +445,7 @@ with tab_dictionary:
     if search_query:
         try:
             with st.spinner("Searching definitions..."):
-                meta_df = pd.read_parquet('data/metadata_dictionary.parquet')
+                meta_df = pd.read_parquet('data/raw/ipeds/metadata_dictionary.parquet')
                 
                 # Make search case-insensitive
                 q = search_query.lower()

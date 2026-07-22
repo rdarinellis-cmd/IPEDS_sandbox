@@ -14,9 +14,16 @@ This repository contains tools for analyzing Higher Education data from the Inte
 │   ├── overview.py            # Dashboard landing page & architecture explanation
 │   ├── spending_analyzer.py   # Spending analyzer dashboard
 │   └── cip_market_share.py    # Degrees awarded / CIP market share dashboard
+├── etl/                       # Raw data ingestion pipeline orchestrators
+│   └── ingest_master.py       # Fetches public datasets and converts them to Snappy-Parquet
 ├── scripts/                   # Local pipeline and processing scripts
 │   └── build_pipeline.py      # Cleans and merges Pathfinder, SOC, and Parquet data
-├── data/                      # Cached local Parquet data files (ignored by Git)
+├── data/                      # Local data directory (ignored by Git)
+│   └── raw/                   # Raw data lake Parquet files
+│       ├── crosswalks/        # Mappings (NCES CIP-SOC Crosswalk)
+│       ├── scorecard/         # College Scorecard Field of Study tables
+│       ├── ipeds/             # IPEDS raw tables
+│       └── labor_mi/          # Michigan labor projections and wages
 ├── dictionaries/              # Variable definitions and Excel dictionaries
 ├── requirements.txt           # Python package dependencies
 ├── clock_in.sh                # Script to sync main branch and set up the .venv environment
@@ -48,6 +55,20 @@ If you need to rebuild your environment from scratch:
 ./rebuild_env.sh
 ```
 *(Alternatively, you can manually run `python3 -m venv .venv` followed by `./.venv/bin/pip install -r requirements.txt`).*
+
+### 3. Populating the Raw Data Lake
+To fetch the public raw datasets (NCES crosswalk and College Scorecard) and convert them to local Snappy-compressed Parquet files, run the master ingestion script:
+```bash
+./.venv/bin/python etl/ingest_master.py
+```
+To run only a specific ingestion task, use the `--only` option:
+```bash
+# Ingest only the CIP-SOC crosswalk
+./.venv/bin/python etl/ingest_master.py --only crosswalk
+
+# Ingest only the College Scorecard Field of Study dataset
+./.venv/bin/python etl/ingest_master.py --only scorecard
+```
 
 ---
 

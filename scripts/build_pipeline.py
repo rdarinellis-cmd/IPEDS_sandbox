@@ -2,25 +2,73 @@ import pandas as pd
 import numpy as np
 import os
 
+def normalize_cip(cip):
+    """Normalize a CIP code string to XX.XXXX format with leading zeros and dot."""
+    if pd.isna(cip):
+        return None
+    s = str(cip).strip().replace('="', '').replace('"', '')
+    if not s:
+        return None
+    
+    # Split by dot
+    if '.' in s:
+        parts = s.split('.')
+        family = parts[0]
+        prog = parts[1] if len(parts) > 1 else ""
+    else:
+        # No dot, e.g. "010101" or "1"
+        if len(s) == 6:
+            family = s[:2]
+            prog = s[2:]
+        elif len(s) == 5:
+            family = "0" + s[0]
+            prog = s[1:]
+        elif len(s) <= 2:
+            family = s
+            prog = ""
+        else:
+            family = s
+            prog = ""
+            
+    # Format family to 2 digits
+    try:
+        family_int = int(family)
+        family_str = f"{family_int:02d}"
+    except ValueError:
+        family_str = family.zfill(2)
+        
+    # Format prog to 4 digits (pad right with zeros)
+    prog_clean = prog.replace('.', '').strip()
+    if len(prog_clean) < 4:
+        prog_str = prog_clean.ljust(4, '0')
+    else:
+        prog_str = prog_clean[:4]
+        
+    return f"{family_str}.{prog_str}"
+
+
 def clean_cip_code(cip_series):
-    """Clean CIP codes to string format 'XX.XXXX'."""
-    # Convert to string, strip whitespace and any excel formula artifacts like ="01.0000"
-    cleaned = cip_series.astype(str).str.replace(r'^[="]+', '', regex=True).str.replace(r'["\s]+$', '', regex=True)
-    # Ensure it's a float-like string, then format to 2.4 digits
-    def format_cip(x):
-        try:
-            return f"{float(x):07.4f}"
-        except ValueError:
-            return x
-    return cleaned.apply(format_cip)
+    """Clean and normalize CIP codes in a series to 'XX.XXXX' format."""
+    return cip_series.map(normalize_cip)
+
+
+def clean_soc_code(soc_series):
+    """Normalize SOC codes in a series to bare 6-digit digits format."""
+    import re
+    def norm_s(s):
+        if pd.isna(s):
+            return None
+        s_clean = str(s).split('.')[0]
+        return re.sub(r'[^0-9]', '', s_clean).strip()
+    return soc_series.map(norm_s)
 
 def main():
     print("Loading data files...")
     # Read files
-    df_pathfinder = pd.read_excel('processing_dropbox/Pathfinder-Employment_Outcome_Report-Wayne_State_University.xlsx', sheet_name='Wayne State University')
-    df_cip = pd.read_csv('processing_dropbox/CIPCode2020.csv', encoding='latin1')
-    df_crosswalk = pd.read_excel('processing_dropbox/CIP2020_SOC2018_Crosswalk.xlsx', sheet_name='CIP-SOC')
-    df_wage = pd.read_csv('processing_dropbox/IOWage_data.csv', encoding='latin1')
+    df_pathfinder = pd.read_excel('data/raw/labor_mi/Pathfinder-Employment_Outcome_Report-Wayne_State_University.xlsx', sheet_name='Wayne State University')
+    df_cip = pd.read_csv('data/raw/crosswalks/CIPCode2020.csv', encoding='latin1')
+    df_crosswalk = pd.read_excel('data/raw/crosswalks/CIP2020_SOC2018_Crosswalk.xlsx', sheet_name='CIP-SOC')
+    df_wage = pd.read_csv('data/raw/labor_mi/IOWage_data.csv', encoding='latin1')
 
     print("Cleaning Pathfinder data...")
     # Clean Pathfinder CIP codes
@@ -67,8 +115,12 @@ def main():
     # Clean Crosswalk CIP codes
     df_crosswalk['CIP2020Code'] = clean_cip_code(df_crosswalk['CIP2020Code'])
     
+    # Normalize SOC codes before joining to avoid hyphen mismatches
+    df_crosswalk['soc_clean'] = clean_soc_code(df_crosswalk['SOC2018Code'])
+    df_wage_pivot['soc_clean'] = clean_soc_code(df_wage_pivot['SOC Occupation Code'])
+    
     # Join Crosswalk with Wage Data
-    df_mapped = pd.merge(df_crosswalk, df_wage_pivot, left_on='SOC2018Code', right_on='SOC Occupation Code', how='inner')
+    df_mapped = pd.merge(df_crosswalk, df_wage_pivot, on='soc_clean', how='inner')
     
     # Group by CIP and calculate mean wages
     cip_state_benchmarks = df_mapped.groupby('CIP2020Code').agg({
@@ -137,12 +189,12 @@ def main():
     print("Integrating IPEDS Completions data...")
     try:
         # Load HD to get WSU UNITID
-        hd = pd.read_parquet('data/hd2024.parquet', columns=['UNITID', 'INSTNM'])
+        hd = pd.read_parquet('data/raw/ipeds/hd2024.parquet', columns=['UNITID', 'INSTNM'])
         hd.columns = hd.columns.str.upper()
         wsu_unitid = str(hd[hd['INSTNM'] == 'Wayne State University']['UNITID'].iloc[0])
         
         # Load c2024_a
-        c24 = pd.read_parquet('data/c2024_a.parquet', columns=['unitid', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT'])
+        c24 = pd.read_parquet('data/raw/ipeds/c2024_a.parquet', columns=['unitid', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT'])
         c24.columns = c24.columns.str.upper()
         
         wsu_comp = c24[(c24['UNITID'] == wsu_unitid) & (c24['MAJORNUM'] == 1)]

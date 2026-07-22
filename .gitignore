@@ -22,3 +22,9 @@ __pycache__/
 
 # Raw Data
 data/College_Scorecard_Raw_Data_06032026/
+
+# Raw data files (Local only - do not commit)
+data/raw/
+data/temp/
+*.csv
+*.zip

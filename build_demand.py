@@ -25,19 +25,66 @@ import os
 import numpy as np
 import pandas as pd
 
-# ---- paths (edit if you relocate the staged files) -------------------------
-XWALK_PATH  = "processing_dropbox/CIP2020_SOC2018_Crosswalk.xlsx"
-MATRIX_PATH = "processing_dropbox/IOMatrix_data.csv"   # MILMI occupation projections
-WAGE_PATH   = "processing_dropbox/IOWage_data.csv"     # MILMI occupation wages
+XWALK_PATH  = "data/raw/crosswalks/CIP2020_SOC2018_Crosswalk.xlsx"
+MATRIX_PATH = "data/raw/labor_mi/IOMatrix_data.csv"   # MILMI occupation projections
+WAGE_PATH   = "data/raw/labor_mi/IOWage_data.csv"     # MILMI occupation wages
 OUT_DIR     = "data"
 HOURS_PER_YEAR = 2080
+
+
+def normalize_cip(cip):
+    """Normalize a CIP code string to XX.XXXX format with leading zeros and dot."""
+    if pd.isna(cip):
+        return None
+    s = str(cip).strip().replace('="', '').replace('"', '')
+    if not s:
+        return None
+    
+    # Split by dot
+    if '.' in s:
+        parts = s.split('.')
+        family = parts[0]
+        prog = parts[1] if len(parts) > 1 else ""
+    else:
+        # No dot, e.g. "010101" or "1"
+        if len(s) == 6:
+            family = s[:2]
+            prog = s[2:]
+        elif len(s) == 5:
+            family = "0" + s[0]
+            prog = s[1:]
+        elif len(s) <= 2:
+            family = s
+            prog = ""
+        else:
+            family = s
+            prog = ""
+            
+    # Format family to 2 digits
+    try:
+        family_int = int(family)
+        family_str = f"{family_int:02d}"
+    except ValueError:
+        family_str = family.zfill(2)
+        
+    # Format prog to 4 digits (pad right with zeros)
+    prog_clean = prog.replace('.', '').strip()
+    if len(prog_clean) < 4:
+        prog_str = prog_clean.ljust(4, '0')
+    else:
+        prog_str = prog_clean[:4]
+        
+    return f"{family_str}.{prog_str}"
 
 
 def _norm_soc(s):
     """Strip to a bare 6-digit SOC string so all three sources join."""
     if pd.isna(s):
         return None
-    return str(s).replace("-", "").strip()
+    # Remove decimal suffixes if any, then remove non-digits
+    s_clean = str(s).split('.')[0]
+    import re
+    return re.sub(r'[^0-9]', '', s_clean).strip()
 
 
 def load_crosswalk(path=XWALK_PATH):
@@ -46,7 +93,7 @@ def load_crosswalk(path=XWALK_PATH):
         "CIP2020Code": "cip", "CIP2020Title": "cip_title",
         "SOC2018Code": "soc", "SOC2018Title": "soc_title",
     })
-    df["cip"] = df["cip"].str.strip()
+    df["cip"] = df["cip"].map(normalize_cip)
     df["soc6"] = df["soc"].map(_norm_soc)
     return df.dropna(subset=["cip", "soc6"])[["cip", "cip_title", "soc6", "soc_title"]]
 

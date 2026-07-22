@@ -36,9 +36,16 @@ IPEDS_sandbox/
 │   ├── overview.py         # App landing page & architecture explanation
 │   ├── cip_market_share.py # Degrees awarded & CIP market share view
 │   └── spending_analyzer.py# Cost/spending analysis dashboard (development branch)
+├── etl/                    # Raw data ingestion pipeline orchestrators
+│   └── ingest_master.py    # Fetches public datasets and converts them to Snappy-Parquet
 ├── scripts/                # Data cleaning and pipeline operations
 │   └── build_pipeline.py   # Local ETL pipeline merging Pathfinder, SOC, and cached Parquet data
-├── data/                   # Cached local Parquet tables (*.parquet)
+├── data/                   # Data directory (Parquet caches)
+│   └── raw/                # Local raw Parquet data lake (Ignored by Git)
+│       ├── crosswalks/     # Mappings (e.g. NCES CIP-SOC crosswalk)
+│       ├── scorecard/      # College Scorecard Field of Study tables
+│       ├── ipeds/          # IPEDS raw tables
+│       └── labor_mi/       # Michigan labor projections and wage data
 └── dictionaries/           # Variable definition translation tables (*.xlsx, *.csv)
 ```
 
