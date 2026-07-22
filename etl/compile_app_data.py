@@ -125,6 +125,8 @@ def compile_completions():
         
         # Filter for 6-digit CIPs (length == 7, e.g. "XX.XXXX")
         c_df = c_df[c_df['cip_code'].astype(str).str.len() == 7]
+        # Filter out 2-digit and 4-digit summary rollup rows (which end in '00')
+        c_df = c_df[~c_df['cip_code'].astype(str).str.endswith('00')]
         
         c_df['year'] = year
         c_df = c_df.rename(columns={

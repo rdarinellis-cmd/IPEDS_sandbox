@@ -197,8 +197,13 @@ def main():
         c24 = pd.read_parquet('data/raw/ipeds/c2024_a.parquet', columns=['unitid', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT'])
         c24.columns = c24.columns.str.upper()
         
-        wsu_comp = c24[(c24['UNITID'] == wsu_unitid) & (c24['MAJORNUM'] == 1)]
-        wsu_comp = wsu_comp[wsu_comp['CIPCODE'].astype(str).str.len() == 7] # 6-digit CIPs
+        wsu_comp = c24[(c24['UNITID'] == wsu_unitid) & (c24['MAJORNUM'] == 1)].copy()
+        # Clean CIP codes first using the robust clean_cip_code function
+        wsu_comp['CIPCODE'] = clean_cip_code(wsu_comp['CIPCODE'])
+        # Keep only valid 6-digit CIPs (length == 7, e.g. "XX.XXXX")
+        wsu_comp = wsu_comp[wsu_comp['CIPCODE'].astype(str).str.len() == 7]
+        # Filter out 2-digit and 4-digit summary rollup rows (which end in '00')
+        wsu_comp = wsu_comp[~wsu_comp['CIPCODE'].astype(str).str.endswith('00')]
         
         # AWLEVEL to Pathfinder Award mapping
         awlevel_map = {
