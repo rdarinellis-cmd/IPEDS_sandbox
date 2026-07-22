@@ -6,4 +6,4 @@ cd "$(dirname "$0")"
 echo "🚀 Starting IPEDS Dashboard..."
 
 # Run using python -m streamlit to bypass shell interpreter shebang resolution issues
-./environment/bin/python3 -m streamlit run app.py
+./.venv/bin/python3 -m streamlit run app.py

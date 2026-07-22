@@ -3,14 +3,14 @@
 # to resolve "no base python" errors.
 
 echo "🧹 Removing old virtual environment..."
-rm -rf environment
+rm -rf .venv
 
 echo "⚙️ Creating new virtual environment..."
-python3 -m venv environment
+python3 -m venv .venv
 
 echo "📦 Upgrading pip and installing dashboard dependencies..."
-./environment/bin/pip install --upgrade pip
-./environment/bin/pip install -r requirements.txt
+./.venv/bin/pip install --upgrade pip
+./.venv/bin/pip install -r requirements.txt
 
 echo "✅ Environment rebuild complete!"
 echo "You can now run the dashboard using: ./run_dashboard.sh"

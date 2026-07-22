@@ -102,33 +102,11 @@ def load_cip_dictionary():
         st.error(f"Failed to load CIP dictionary from local files: {e}")
         return pd.DataFrame()
 
-
-# --- SPRINT 2: Michigan occupational demand loaders ---
-# These read the two parquet tables produced by build_demand.py.
-# If they aren't built yet, the loaders return empty frames and the
-# demand section below shows a friendly "run build_demand.py" message.
-@st.cache_data(ttl=3600)
-def load_demand_summary():
-    try:
-        return pd.read_parquet('data/cip_demand_summary.parquet')
-    except Exception:
-        return pd.DataFrame()
-
-@st.cache_data(ttl=3600)
-def load_demand_itemized():
-    try:
-        return pd.read_parquet('data/cip_demand_itemized.parquet')
-    except Exception:
-        return pd.DataFrame()
-
-
 st.title("Michigan Public Universities: CIP Market Share & CAGR")
 
 with st.spinner("Loading local data..."):
     df = load_completions_data()
     cip_dict = load_cip_dictionary()
-    demand_summary = load_demand_summary()
-    demand_itemized = load_demand_itemized()
 
 # Data cleaning
 df['cip_code'] = df['cip_code'].astype(str)
@@ -288,83 +266,3 @@ else:
                 'market_share': '{:.1%}',
                 'cagr': '{:.1%}'
             }))
-
-
-# ============================================================================
-# SPRINT 2: MICHIGAN OCCUPATIONAL DEMAND
-# Runs independently of the supply chart above, keyed to the same sidebar CIP
-# selection. This is deliberate: a program with high demand but LOW Wayne State
-# supply is exactly the opportunity case, so demand must show even when the
-# supply scatter is thin. Openings are shown per occupation and never summed
-# (one occupation is shared across many programs via the crosswalk).
-# ============================================================================
-st.divider()
-st.header("Michigan Occupational Demand")
-
-if demand_summary.empty:
-    st.info(
-        "Demand data not found. In your virtual environment, run "
-        "`python build_demand.py` to generate "
-        "`data/cip_demand_summary.parquet` and "
-        "`data/cip_demand_itemized.parquet`, then refresh this page."
-    )
-else:
-    st.caption(
-        "Where graduates of the selected program(s) tend to work, with projected "
-        "Michigan annual openings and annualized median wages. Occupations are "
-        "linked to programs via the CIP\u2192SOC crosswalk. Openings are shown per "
-        "occupation and are never summed across a program's occupations, because "
-        "one occupation is shared by many programs."
-    )
-
-    # Resolve which CIPs to show, from the sidebar selection.
-    if selected_cips:
-        target_cips = list(selected_cips)
-    elif selected_family_codes:
-        target_cips = sorted(
-            demand_summary[demand_summary['cip'].str[:2].isin(selected_family_codes)]['cip'].unique()
-        )
-    else:
-        target_cips = []
-
-    if not target_cips:
-        st.info("Select a specific CIP code (or a CIP family) in the sidebar to see occupational demand.")
-    else:
-        sum_rows = demand_summary[demand_summary['cip'].isin(target_cips)].copy()
-
-        if sum_rows.empty:
-            st.warning(
-                "No Michigan demand mapping found for this selection. "
-                "Some CIP codes have no linked occupations in the crosswalk."
-            )
-        else:
-            # Program-level summary: breadth + growth-share + wage band (never a sum).
-            summary_display = pd.DataFrame({
-                'CIP': sum_rows['cip'],
-                'Program': sum_rows['cip_title'],
-                'Linked occupations': sum_rows['n_occ'].astype(int),
-                'Growing / mapped': sum_rows.apply(
-                    lambda r: f"{int(r['n_growing'])} / {int(r['n_matched'])}", axis=1),
-                'Wage band (annual median)': sum_rows.apply(
-                    lambda r: (f"${r['wage_lo']:,.0f} \u2013 ${r['wage_hi']:,.0f}"
-                               if pd.notna(r['wage_lo']) else "n/a"), axis=1),
-            })
-            st.dataframe(summary_display, hide_index=True)
-
-            # Itemized occupations for the selected program(s).
-            if not demand_itemized.empty:
-                items = demand_itemized[demand_itemized['cip'].isin(target_cips)].copy()
-                items = items.dropna(subset=['annual_openings'])
-                items = items.sort_values('annual_openings', ascending=False)
-
-                with st.expander(f"Linked occupations detail ({len(items)} occupations)"):
-                    items_display = pd.DataFrame({
-                        'CIP': items['cip'],
-                        'Occupation': items['soc_title'],
-                        'Annual openings': items['annual_openings'].map(lambda v: f"{v:,.0f}"),
-                        'Projected change': items['pct_change'].map(
-                            lambda v: f"{v*100:+.1f}%" if pd.notna(v) else "n/a"),
-                        'Median wage': items['median_wage'].map(
-                            lambda v: f"${v:,.0f}" if pd.notna(v) else "n/a"),
-                    })
-                    st.dataframe(items_display, hide_index=True)
