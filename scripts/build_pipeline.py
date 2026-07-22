@@ -251,10 +251,10 @@ def main():
         df_final['is_underrepresented'] = False
 
     print("Saving to Parquet...")
-    os.makedirs('data', exist_ok=True)
+    os.makedirs('data/app', exist_ok=True)
     # Save outputs
-    df_final.to_parquet('data/wsu_cip_outcomes.parquet', index=False)
-    df_soc_benchmarks.to_parquet('data/statewide_soc_benchmarks.parquet', index=False)
+    df_final.to_parquet('data/app/wsu_cip_outcomes.parquet', index=False)
+    df_soc_benchmarks.to_parquet('data/app/statewide_soc_benchmarks.parquet', index=False)
     
     print("ETL Pipeline completed successfully!")
 

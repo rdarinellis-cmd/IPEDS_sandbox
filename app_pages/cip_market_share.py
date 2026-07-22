@@ -18,66 +18,13 @@ def read_parquet_upper(file_path, cols):
 # Cache the data load
 @st.cache_data(ttl=3600)
 def load_completions_data():
-    # Target 15 Michigan public 4-year universities
-    schools = [
-        'Central Michigan University',
-        'Eastern Michigan University',
-        'Ferris State University',
-        'Grand Valley State University',
-        'Lake Superior State University',
-        'Michigan State University',
-        'Michigan Technological University',
-        'Northern Michigan University',
-        'Oakland University',
-        'Saginaw Valley State University',
-        'University of Michigan-Ann Arbor',
-        'University of Michigan-Dearborn',
-        'University of Michigan-Flint',
-        'Wayne State University',
-        'Western Michigan University'
-    ]
-    
     try:
-        # Load hd2024 to get the UNITIDs for these schools
-        inst_df = read_parquet_upper('data/raw/ipeds/hd2024.parquet', ['UNITID', 'INSTNM'])
-        
-        inst_df = inst_df[inst_df['INSTNM'].isin(schools)]
-        
-        valid_unitids = inst_df['UNITID'].tolist()
-        
-        comp_dfs = []
-        for year in ['2019', '2020', '2021', '2022', '2023', '2024']:
-            file_path = f"data/raw/ipeds/c{year}_a.parquet"
-            if not os.path.exists(file_path):
-                continue
-                
-            df = read_parquet_upper(file_path, ['UNITID', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT'])
-            
-            # MAJORNUM = 1 and length(CIPCODE) = 7
-            df = df[df['MAJORNUM'] == 1]
-            df = df[df['CIPCODE'].astype(str).str.len() == 7]
-            
-            # Filter to our targeted institutions early to save memory
-            df = df[df['UNITID'].isin(valid_unitids)]
-            df['year'] = year
-            
-            comp_dfs.append(df)
-            
-        if not comp_dfs:
+        file_path = 'data/app/completions_michigan.parquet'
+        if not os.path.exists(file_path):
             return pd.DataFrame()
-            
-        comp_all = pd.concat(comp_dfs, ignore_index=True)
-        
-        # Merge with institution names
-        final_df = comp_all.merge(inst_df, on='UNITID', how='inner')
-        final_df = final_df.rename(columns={
-            'INSTNM': 'institution',
-            'CIPCODE': 'cip_code',
-            'AWLEVEL': 'award_level',
-            'CTOTALT': 'total_degrees'
-        })
-        
-        return final_df[['year', 'institution', 'cip_code', 'award_level', 'total_degrees']]
+        df = pd.read_parquet(file_path)
+        # completions_michigan already contains: year, institution, cip_code, award_level, total_degrees
+        return df[['year', 'institution', 'cip_code', 'award_level', 'total_degrees']]
     except Exception as e:
         st.error(f"Failed to load completions data from local files: {e}")
         return pd.DataFrame()
@@ -85,19 +32,24 @@ def load_completions_data():
 @st.cache_data(ttl=3600)
 def load_cip_dictionary():
     try:
-        df = pd.read_parquet('data/raw/ipeds/cip_dictionary.parquet')
+        df = pd.read_parquet('data/app/cip_dictionary.parquet')
         
-        if 'cipfamily' in df.columns:
-            df['cip_family'] = df['cipfamily'].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
-        else:
-            df['cip_family'] = ""
+        # Determine columns dynamically
+        fam_col = 'cip_family'
+        if 'cip_family' not in df.columns and 'cipfamily' in df.columns:
+            fam_col = 'cipfamily'
             
-        if 'cipcode' in df.columns:
-            df['cip_code'] = df['cipcode'].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
-        else:
-            df['cip_code'] = ""
+        code_col = 'cip_code'
+        if 'cip_code' not in df.columns and 'cipcode' in df.columns:
+            code_col = 'cipcode'
             
-        return df[['cip_family', 'cip_code', 'ciptitle']]
+        df['cip_family_clean'] = df[fam_col].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
+        df['cip_code_clean'] = df[code_col].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
+            
+        return df[['cip_family_clean', 'cip_code_clean', 'ciptitle']].rename(columns={
+            'cip_family_clean': 'cip_family',
+            'cip_code_clean': 'cip_code'
+        })
     except Exception as e:
         st.error(f"Failed to load CIP dictionary from local files: {e}")
         return pd.DataFrame()
@@ -110,14 +62,14 @@ def load_cip_dictionary():
 @st.cache_data(ttl=3600)
 def load_demand_summary():
     try:
-        return pd.read_parquet('data/cip_demand_summary.parquet')
+        return pd.read_parquet('data/app/cip_demand_summary.parquet')
     except Exception:
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def load_demand_itemized():
     try:
-        return pd.read_parquet('data/cip_demand_itemized.parquet')
+        return pd.read_parquet('data/app/cip_demand_itemized.parquet')
     except Exception:
         return pd.DataFrame()
 
@@ -305,8 +257,8 @@ if demand_summary.empty:
     st.info(
         "Demand data not found. In your virtual environment, run "
         "`python build_demand.py` to generate "
-        "`data/cip_demand_summary.parquet` and "
-        "`data/cip_demand_itemized.parquet`, then refresh this page."
+        "`data/app/cip_demand_summary.parquet` and "
+        "`data/app/cip_demand_itemized.parquet`, then refresh this page."
     )
 else:
     st.caption(

@@ -55,17 +55,11 @@ YEARS_CONFIG = {
 def get_available_years():
     """Detect which years have all required parquet files in the data directory."""
     try:
-        available_years = []
-        for year, config in YEARS_CONFIG.items():
-            if (os.path.exists(f"data/raw/ipeds/{config['hd']}.parquet") and 
-                os.path.exists(f"data/raw/ipeds/{config['ef']}.parquet") and 
-                os.path.exists(f"data/raw/ipeds/{config['f1']}.parquet") and 
-                os.path.exists(f"data/raw/ipeds/{config['f2']}.parquet") and 
-                os.path.exists(f"data/raw/ipeds/{config['f3']}.parquet")):
-                available_years.append(year)
-        if not available_years:
-            return list(YEARS_CONFIG.keys())
-        return available_years
+        file_path = "data/app/spending_benchmarks.parquet"
+        if os.path.exists(file_path):
+            df = pd.read_parquet(file_path, columns=['year_label'])
+            return df['year_label'].unique().tolist()
+        return list(YEARS_CONFIG.keys())
     except Exception as e:
         return list(YEARS_CONFIG.keys())
 
@@ -208,42 +202,41 @@ def load_spending_data(year_cfg, controls_list, carnegies_list, filter_urban):
         return pd.DataFrame()
         
     try:
-        # Load necessary columns to save memory
-        hd_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['hd']}.parquet", ['UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE'])
-        ef_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['ef']}.parquet", ['UNITID', 'FTE12MN'])
-        f1_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['f1']}.parquet", ['UNITID', 'F1C011', 'F1C051', 'F1C061'])
-        f2_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['f2']}.parquet", ['UNITID', 'F2E011', 'F2E041', 'F2E051'])
-        f3_df = read_parquet_upper(f"data/raw/ipeds/{year_cfg['f3']}.parquet", ['UNITID', 'F3E011', 'F3E03A1', 'F3E03B1'])
-        
-        # Apply filters
-        hd_df = hd_df[hd_df['CONTROL'].isin(controls_list)]
-        hd_df = hd_df[hd_df['C21BASIC'].isin(carnegies_list)]
-        if filter_urban:
-            hd_df = hd_df[hd_df['LOCALE'].isin([11, 12, 13])]
-            
-        if hd_df.empty:
+        file_path = "data/app/spending_benchmarks.parquet"
+        if not os.path.exists(file_path):
             return pd.DataFrame()
             
-        # Left joins
-        df = hd_df.merge(ef_df, on='UNITID', how='left')
-        df = df.merge(f1_df, on='UNITID', how='left')
-        df = df.merge(f2_df, on='UNITID', how='left')
-        df = df.merge(f3_df, on='UNITID', how='left')
+        df = pd.read_parquet(file_path)
         
-        # Filter valid FTE
-        df = df[df['FTE12MN'].notna() & (df['FTE12MN'] > 0)]
-        
-        # Coalesce spending columns
-        df['spend_instruction'] = df['F1C011'].combine_first(df['F2E011']).combine_first(df['F3E011'])
-        df['spend_academic_support'] = df['F1C051'].combine_first(df['F2E041']).combine_first(df['F3E03A1'])
-        df['spend_student_services'] = df['F1C061'].combine_first(df['F2E051']).combine_first(df['F3E03B1'])
-        
-        df = df.rename(columns={'FTE12MN': 'fte_enrollment'})
+        # Find matching year label for the config
+        year_label = None
+        for label, cfg in YEARS_CONFIG.items():
+            if cfg == year_cfg:
+                year_label = label
+                break
+                
+        if year_label is not None:
+            df = df[df['year_label'] == year_label]
+            
+        # Apply filters (note columns are lowercase in compiled parquet)
+        df = df[df['control'].isin(controls_list)]
+        df = df[df['c21basic'].isin(carnegies_list)]
+        if filter_urban:
+            df = df[df['locale'].isin([11, 12, 13])]
+            
+        # Rename columns to uppercase to match expected casing in the dashboard
+        df = df.rename(columns={
+            'unitid': 'UNITID',
+            'instnm': 'INSTNM',
+            'control': 'CONTROL',
+            'c21basic': 'C21BASIC',
+            'locale': 'LOCALE'
+        })
         
         return df[['UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE', 'fte_enrollment', 
                    'spend_instruction', 'spend_academic_support', 'spend_student_services']]
     except Exception as e:
-        st.error(f"Failed to load Parquet files for {year_cfg['hd']}, etc.: {e}")
+        st.error(f"Failed to load spending data: {e}")
         return pd.DataFrame()
 
 # Load data
@@ -370,67 +363,44 @@ with tab_trends:
             selected_ids_str = ", ".join(map(str, selected_ids))
             
             # Fetch data across all available years
-            trend_dfs = []
             try:
                 with st.spinner("Compiling historical trends from local files..."):
-                    for y_name in available_years:
-                        cfg = YEARS_CONFIG[y_name]
+                    file_path = "data/app/spending_benchmarks.parquet"
+                    if os.path.exists(file_path):
+                        all_spend = pd.read_parquet(file_path)
                         
-                        hd_path = f"data/raw/ipeds/{cfg['hd']}.parquet"
-                        ef_path = f"data/raw/ipeds/{cfg['ef']}.parquet"
-                        f1_path = f"data/raw/ipeds/{cfg['f1']}.parquet"
-                        f2_path = f"data/raw/ipeds/{cfg['f2']}.parquet"
-                        f3_path = f"data/raw/ipeds/{cfg['f3']}.parquet"
+                        # Filter for selected peer IDs
+                        all_spend['unitid_str'] = all_spend['unitid'].astype(str)
+                        sel_ids_str = [str(i) for i in selected_ids]
                         
-                        if not all(os.path.exists(p) for p in [hd_path, ef_path, f1_path, f2_path, f3_path]):
-                            continue
+                        df_trends_raw = all_spend[all_spend['unitid_str'].isin(sel_ids_str)].copy()
+                        
+                        # Rename columns to match expected schema
+                        df_trends_raw = df_trends_raw.rename(columns={
+                            'year_label': 'academic_year',
+                            'instnm': 'INSTNM'
+                        })
+                        
+                        if not df_trends_raw.empty:
+                            df_trends = df_trends_raw.copy()
+                            df_trends['Instruction / FTE'] = df_trends['spend_instruction'] / df_trends['fte_enrollment']
+                            df_trends['Academic Support / FTE'] = df_trends['spend_academic_support'] / df_trends['fte_enrollment']
+                            df_trends['Student Services / FTE'] = df_trends['spend_student_services'] / df_trends['fte_enrollment']
                             
-                        hd_df = read_parquet_upper(hd_path, ['UNITID', 'INSTNM'])
-                        hd_df = hd_df[hd_df['UNITID'].isin(selected_ids)]
-                        if hd_df.empty:
-                            continue
+                            metric_to_plot = st.selectbox(
+                                "Select Spending Metric to Plot",
+                                ["Instruction / FTE", "Academic Support / FTE", "Student Services / FTE"]
+                            )
                             
-                        ef_df = read_parquet_upper(ef_path, ['UNITID', 'FTE12MN'])
-                        f1_df = read_parquet_upper(f1_path, ['UNITID', 'F1C011', 'F1C051', 'F1C061'])
-                        f2_df = read_parquet_upper(f2_path, ['UNITID', 'F2E011', 'F2E041', 'F2E051'])
-                        f3_df = read_parquet_upper(f3_path, ['UNITID', 'F3E011', 'F3E03A1', 'F3E03B1'])
-                        
-                        df_y = hd_df.merge(ef_df, on='UNITID', how='left')
-                        df_y = df_y.merge(f1_df, on='UNITID', how='left')
-                        df_y = df_y.merge(f2_df, on='UNITID', how='left')
-                        df_y = df_y.merge(f3_df, on='UNITID', how='left')
-                        
-                        df_y = df_y[df_y['FTE12MN'].notna() & (df_y['FTE12MN'] > 0)]
-                        
-                        if not df_y.empty:
-                            df_y['spend_instruction'] = df_y['F1C011'].combine_first(df_y['F2E011']).combine_first(df_y['F3E011'])
-                            df_y['spend_academic_support'] = df_y['F1C051'].combine_first(df_y['F2E041']).combine_first(df_y['F3E03A1'])
-                            df_y['spend_student_services'] = df_y['F1C061'].combine_first(df_y['F2E051']).combine_first(df_y['F3E03B1'])
-                            df_y = df_y.rename(columns={'FTE12MN': 'fte_enrollment'})
-                            df_y['academic_year'] = y_name
-                            trend_dfs.append(df_y[['academic_year', 'INSTNM', 'fte_enrollment', 'spend_instruction', 'spend_academic_support', 'spend_student_services']])
+                            # Pivot to align line chart: index=academic_year, columns=INSTNM
+                            df_pivot = df_trends.pivot(index='academic_year', columns='INSTNM', values=metric_to_plot)
+                            df_pivot = df_pivot.sort_index()
                             
-                    if trend_dfs:
-                        df_trends_raw = pd.concat(trend_dfs, ignore_index=True)
-                        # Calculate metric columns
-                        df_trends = df_trends_raw.copy()
-                        df_trends['Instruction / FTE'] = df_trends['spend_instruction'] / df_trends['fte_enrollment']
-                        df_trends['Academic Support / FTE'] = df_trends['spend_academic_support'] / df_trends['fte_enrollment']
-                        df_trends['Student Services / FTE'] = df_trends['spend_student_services'] / df_trends['fte_enrollment']
-                        
-                        metric_to_plot = st.selectbox(
-                            "Select Spending Metric to Plot",
-                            ["Instruction / FTE", "Academic Support / FTE", "Student Services / FTE"]
-                        )
-                        
-                        # Pivot to align line chart: index=academic_year, columns=INSTNM
-                        df_pivot = df_trends.pivot(index='academic_year', columns='INSTNM', values=metric_to_plot)
-                        # Sort years correctly
-                        df_pivot = df_pivot.sort_index()
-                        
-                        st.line_chart(df_pivot)
+                            st.line_chart(df_pivot)
+                        else:
+                            st.warning("No data returned for selected institutions in other academic years.")
                     else:
-                        st.warning("No data returned for selected institutions in other academic years.")
+                        st.warning("Spending benchmarks dataset is missing on disk.")
             except Exception as e:
                 st.error(f"Error querying historical trend data: {e}")
         else:
@@ -445,7 +415,7 @@ with tab_dictionary:
     if search_query:
         try:
             with st.spinner("Searching definitions..."):
-                meta_df = pd.read_parquet('data/raw/ipeds/metadata_dictionary.parquet')
+                meta_df = pd.read_parquet('data/app/metadata_dictionary.parquet')
                 
                 # Make search case-insensitive
                 q = search_query.lower()

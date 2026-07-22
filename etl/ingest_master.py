@@ -14,6 +14,7 @@ import zipfile
 import argparse
 import requests
 import pandas as pd
+import sys
 
 # ---- Configuration & URLs ----------------------------------------------------
 DATA_DIR = "./data/raw"
@@ -175,6 +176,14 @@ def main():
             
     finally:
         cleanup_temp()
+        
+    print("\n📦 Triggering App Data compilation...")
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import compile_app_data
+        compile_app_data.main()
+    except Exception as e:
+        print(f"⚠️ Warning: App data compilation failed: {e}")
         
     print("\n🏁 Master Ingestion Pipeline completed successfully!")
 

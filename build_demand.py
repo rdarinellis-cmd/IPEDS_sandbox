@@ -28,7 +28,7 @@ import pandas as pd
 XWALK_PATH  = "data/raw/crosswalks/CIP2020_SOC2018_Crosswalk.xlsx"
 MATRIX_PATH = "data/raw/labor_mi/IOMatrix_data.csv"   # MILMI occupation projections
 WAGE_PATH   = "data/raw/labor_mi/IOWage_data.csv"     # MILMI occupation wages
-OUT_DIR     = "data"
+OUT_DIR     = "data/app"
 HOURS_PER_YEAR = 2080
 
 

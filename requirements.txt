@@ -5,3 +5,4 @@ openpyxl>=3.1
 requests>=2.34
 altair>=6.2
 plotly
+watchdog
