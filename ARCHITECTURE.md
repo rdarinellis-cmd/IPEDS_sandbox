@@ -5,17 +5,15 @@
 - **Developer Mindset:** Re-engaging with coding after a multi-decade hiatus (BASIC/FORTRAN backgrounds). Value simplicity, lean toolsets, local-first environments, and zero-to-low cost footprint.
 - **Primary Constraints:** Avoid heavy database infrastructure, container virtualization, or complex cloud authentication overhead. Decouple completely from external cloud databases.
 
-## 🏗️ 2. Architectural Evolution
-We transitioned from a legacy, cloud-hosted distributed pipeline to a pure local-memory, file-based execution model:
+## 🏛️ 2. Local-First Architecture Design
+This dashboard is designed to run completely serverlessly on a local-first, file-based execution model:
 
-| Attribute | Legacy Cloud Pipeline | Current Local-First Architecture |
-| :--- | :--- | :--- |
-| **Data Engine** | Google BigQuery (Client-Server SQL) | In-Memory Pandas + Apache Parquet |
-| **Dictionary Setup** | Stored remotely in BigQuery | Local `.xlsx` NCES lookups in [dictionaries/](file:///Users/ac7940/Antigravity/IPEDS_sandbox/dictionaries) |
-| **Auth Complexity** | Strict GCP Service Account Keys & OAuth | Zero Application-level authentication |
-| **Compute Profile** | External Cloud Data Warehousing | Fast, local multi-threaded file execution |
-| **Hosting Strategy** | Google Cloud Run Container (Retired) | Streamlit Community Cloud (GitHub Synced) |
-| **Financial Cost** | Variable cloud fees ($) | Guaranteed $0.00/month (Free tier) |
+- **Data Engine:** In-Memory Pandas + Apache Parquet files (`.parquet`), providing extreme compression and lightning-fast read speeds.
+- **Dictionary Setup:** Local `.xlsx` NCES lookups in [dictionaries/](file:///Users/ac7940/Antigravity/IPEDS_sandbox/dictionaries).
+- **Auth Complexity:** Zero Application-level authentication or credential overhead.
+- **Compute Profile:** Fast, local multi-threaded file execution using Pandas and PyArrow.
+- **Hosting Strategy:** Deployed directly to Streamlit Community Cloud (GitHub Synced).
+- **Financial Cost:** Guaranteed $0.00/month footprint using free hosting tier.
 
 ## 📁 3. Workspace Layout
 The repository is structured as a lightweight Python project:
@@ -89,4 +87,4 @@ Production deployments are fully automated. When you push your code to the `main
 
 ## 🤖 6. Context Anchor for Antigravity Chat
 Whenever you start a brand new chat tab in your IDE, paste this paragraph to ground the AI agent:
-> "We are working on the IPEDS Streamlit dashboard project located in this workspace root. Our architecture relies purely on local caching via compressed .parquet tables and Excel lookup files inside /dictionaries, running on a local Streamlit server and deployed to Streamlit Community Cloud via GitHub. No GCP/BigQuery elements exist in our stack. Please read ARCHITECTURE.md in this directory to align your code generation scripts, terminal selections, and prompt styles with our blueprint."
+> "We are working on the IPEDS Streamlit dashboard project located in this workspace root. Our architecture relies purely on local caching via compressed .parquet tables and Excel lookup files inside /dictionaries, running on a local Streamlit server and deployed to Streamlit Community Cloud via GitHub. No external cloud databases or cloud configuration elements exist in our stack. Please read ARCHITECTURE.md in this directory to align your code generation scripts, terminal selections, and prompt styles with our blueprint."
