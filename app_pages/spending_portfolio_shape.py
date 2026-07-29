@@ -19,14 +19,12 @@ html, body, [class*="css"], .stMarkdown {
 
 /* Info container styling */
 .info-card {
-    background: rgba(30, 41, 59, 0.45);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(12, 84, 73, 0.05); /* WSU Green Light Tint */
+    border: 1px solid rgba(12, 84, 73, 0.15);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -288,7 +286,7 @@ else:
             )
 
             # 3. WSU Line (Target Bold Highlight)
-            wsu_chart = alt.Chart(df_wsu).mark_line(color='#0c7a5f', strokeWidth=4).encode(
+            wsu_chart = alt.Chart(df_wsu).mark_line(color='#0C5449', strokeWidth=4).encode(
                 x='YEAR:O',
                 y=f'{selected_cat}:Q',
                 tooltip=[
@@ -297,7 +295,7 @@ else:
                     alt.Tooltip(f'{selected_cat}:Q', title="Share %", format=".1f")
                 ]
             )
-            wsu_points = alt.Chart(df_wsu).mark_circle(color='#0c7a5f', size=80).encode(
+            wsu_points = alt.Chart(df_wsu).mark_point(color='#0C5449', size=90, filled=True, shape='diamond').encode(
                 x='YEAR:O',
                 y=f'{selected_cat}:Q'
             )
@@ -311,13 +309,25 @@ else:
                     x='YEAR:O',
                     y=f'{selected_cat}:Q',
                     color=alt.Color('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
+                    strokeDash=alt.StrokeDash('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
                     tooltip=[
                         alt.Tooltip('INSTNM:N', title="Institution"),
                         alt.Tooltip('YEAR:O', title="Year"),
                         alt.Tooltip(f'{selected_cat}:Q', title="Share %", format=".1f")
                     ]
                 )
-                chart_list.append(peer_lines)
+                peer_points = alt.Chart(df_selected_peers).mark_point(filled=True, size=60).encode(
+                    x='YEAR:O',
+                    y=f'{selected_cat}:Q',
+                    color=alt.Color('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
+                    shape=alt.Shape('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
+                    tooltip=[
+                        alt.Tooltip('INSTNM:N', title="Institution"),
+                        alt.Tooltip('YEAR:O', title="Year"),
+                        alt.Tooltip(f'{selected_cat}:Q', title="Share %", format=".1f")
+                    ]
+                )
+                chart_list.extend([peer_lines, peer_points])
 
             # Create interactive final chart
             chart = alt.layer(*chart_list).properties(
@@ -326,10 +336,19 @@ else:
             ).resolve_scale(y='shared')
 
             st.altair_chart(chart, use_container_width=True)
+
+            with st.expander("♿ Accessible Data Table - Share Trend Details"):
+                df_trend_pivot = df_frame.pivot(index='YEAR', columns='INSTNM', values=selected_cat)
+                cols_ordered = ['Wayne State University'] + [c for c in df_trend_pivot.columns if c != 'Wayne State University']
+                cols_ordered = [c for c in cols_ordered if c in df_trend_pivot.columns]
+                st.dataframe(
+                    df_trend_pivot[cols_ordered],
+                    width="stretch"
+                )
             
             # Interactive legend details
             st.markdown("""
-            * **Bold Green Line:** Wayne State University (Target)
+            * **Bold Green Diamond Line:** Wayne State University (Target)
             * **Blue Dashed Line:** Peer Group Median
             * **Shaded Blue Area:** Peer Group 25th to 75th Percentile Band (Middle 50% of schools)
             """)
@@ -385,7 +404,7 @@ else:
             bar_chart = alt.Chart(df_plot).mark_bar().encode(
                 x=alt.X('Group:N', title=None, axis=alt.Axis(labels=False)),
                 y=alt.Y('Share %:Q', title="Share of Core Expenses (%)", scale=alt.Scale(domain=[0, 100])),
-                color=alt.Color('Group:N', scale=alt.Scale(domain=['Wayne State University', f'Peer Medians ({active_name})'], range=['#0c7a5f', '#818cf8']), legend=alt.Legend(title="Portfolio Group")),
+                color=alt.Color('Group:N', scale=alt.Scale(domain=['Wayne State University', f'Peer Medians ({active_name})'], range=['#0C5449', '#FFCC33']), legend=alt.Legend(title="Portfolio Group")),
                 column=alt.Column('Category:N', title="Functional Expense Category", header=alt.Header(labelOrient='bottom', titleOrient='bottom', labelAngle=-45, labelPadding=10)),
                 tooltip=[
                     alt.Tooltip('Group:N', title="Group"),
@@ -397,7 +416,32 @@ else:
                 width=100
             )
 
-            st.altair_chart(bar_chart)
+            # Redundant encoding: add text labels on top of bars
+            bar_text = bar_chart.mark_text(
+                align='center',
+                baseline='bottom',
+                dy=-3,
+                fontSize=9,
+                fontWeight='bold'
+            ).encode(
+                text=alt.Text('Share %:Q', format='.1f')
+            )
+
+            final_bar_chart = (bar_chart + bar_text)
+            st.altair_chart(final_bar_chart)
+
+            # Accessible Data Fallback expander
+            with st.expander("♿ Accessible Data Table - Portfolio Shape Comparison"):
+                df_pivot_shape = df_plot.pivot(index='Category', columns='Group', values='Share %')
+                st.dataframe(
+                    df_pivot_shape,
+                    column_config={
+                        "Category": "Expense Category",
+                        "Wayne State University": st.column_config.NumberColumn("Wayne State (%)", format="%.1f%%"),
+                        f"Peer Medians ({active_name})": st.column_config.NumberColumn("Peer Median (%)", format="%.1f%%")
+                    },
+                    width="stretch"
+                )
             
             st.info("💡 **Interpretation:** The chart above shows how Wayne State University slices its 'core budget pie' across departments compared to the average peer. A higher bar indicates a higher relative priority placed on that function, independent of the institution's overall budget size.")
 

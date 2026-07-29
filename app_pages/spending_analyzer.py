@@ -84,27 +84,25 @@ html, body, [class*="css"], .stMarkdown {
 .kpi-card {
     flex: 1;
     min-width: 220px;
-    background: rgba(30, 41, 59, 0.45);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #ffffff;
+    border: 1px solid rgba(12, 84, 73, 0.15);
     border-radius: 16px;
     padding: 24px;
     text-align: center;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .kpi-card:hover {
     transform: translateY(-5px);
-    border-color: rgba(99, 102, 241, 0.4);
-    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.15);
+    border-color: #0C5449; /* WSU Green */
+    box-shadow: 0 10px 30px rgba(12, 84, 73, 0.12);
 }
 
 .kpi-title {
     font-size: 13px;
     font-weight: 600;
-    color: #94a3b8;
+    color: #555555;
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 8px;
@@ -113,9 +111,7 @@ html, body, [class*="css"], .stMarkdown {
 .kpi-value {
     font-size: 32px;
     font-weight: 700;
-    background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #0C5449; /* WSU Green */
 }
 </style>
 """, unsafe_allow_html=True)
@@ -294,8 +290,49 @@ with tab_summary:
         # Top 10 institutions by Instruction Spend per FTE Chart
         st.subheader("🏆 Top 10 Spending Institutions (Instruction per FTE)")
         top_10 = df.nlargest(10, 'Instruction per FTE')
-        chart_data = top_10.set_index('INSTNM')[['Instruction per FTE', 'Academic Support per FTE', 'Student Services per FTE']]
-        st.bar_chart(chart_data)
+        
+        df_tidy = top_10[['INSTNM', 'Instruction per FTE', 'Academic Support per FTE', 'Student Services per FTE']].melt(
+            id_vars='INSTNM',
+            var_name='Spending Category',
+            value_name='Spend per FTE'
+        )
+        
+        # Grouped Bar Chart in Altair
+        bar_chart = alt.Chart(df_tidy).mark_bar().encode(
+            x=alt.X('Spending Category:N', title=None, axis=alt.Axis(labels=False)),
+            y=alt.Y('Spend per FTE:Q', title="Spend per FTE ($)"),
+            color=alt.Color('Spending Category:N', scale=alt.Scale(domain=['Instruction per FTE', 'Academic Support per FTE', 'Student Services per FTE'], range=['#0C5449', '#FFCC33', '#111111']), legend=alt.Legend(title="Category")),
+            column=alt.Column('INSTNM:N', title="Institution", header=alt.Header(labelOrient='bottom', titleOrient='bottom', labelAngle=-45, labelPadding=10)),
+            tooltip=['INSTNM', 'Spending Category', alt.Tooltip('Spend per FTE:Q', format='$,.2f')]
+        )
+        
+        # Redundant encoding: exact value labels on top of bars
+        text_labels = bar_chart.mark_text(
+            align='center',
+            baseline='bottom',
+            dy=-3,
+            fontSize=9,
+            fontWeight='bold'
+        ).encode(
+            text=alt.Text('Spend per FTE:Q', format='$,.0f')
+        )
+        
+        final_bar_chart = (bar_chart + text_labels).properties(width=70)
+        st.altair_chart(final_bar_chart)
+        
+        # Accessible Data Fallback expander
+        with st.expander("♿ Accessible Data Table - Top 10 Spending Institutions"):
+            st.dataframe(
+                top_10[['INSTNM', 'Instruction per FTE', 'Academic Support per FTE', 'Student Services per FTE']],
+                column_config={
+                    "INSTNM": "Institution",
+                    "Instruction per FTE": st.column_config.NumberColumn("Instruction / FTE ($)", format="$%,.2f"),
+                    "Academic Support per FTE": st.column_config.NumberColumn("Academic Support / FTE ($)", format="$%,.2f"),
+                    "Student Services per FTE": st.column_config.NumberColumn("Student Services / FTE ($)", format="$%,.2f")
+                },
+                hide_index=True,
+                width="stretch"
+            )
         
         # Render Dataframe
         st.subheader("📊 Institutional Spending Details")
@@ -385,7 +422,42 @@ with tab_trends:
                             df_pivot = df_trends.pivot(index='academic_year', columns='INSTNM', values=metric_to_plot)
                             df_pivot = df_pivot.sort_index()
                             
-                            st.line_chart(df_pivot)
+                            df_plot_trends = df_pivot.reset_index().melt(
+                                id_vars='academic_year',
+                                var_name='Institution',
+                                value_name='Spend'
+                            )
+                            
+                            # Line chart with strokeDash for redundant encoding
+                            trend_lines = alt.Chart(df_plot_trends).mark_line().encode(
+                                x=alt.X('academic_year:O', title="Academic Year"),
+                                y=alt.Y('Spend:Q', title=f"{metric_to_plot} ($)"),
+                                color=alt.Color('Institution:N', legend=alt.Legend(title="Institution")),
+                                strokeDash=alt.StrokeDash('Institution:N', legend=alt.Legend(title="Institution")),
+                                tooltip=['Institution', 'academic_year', alt.Tooltip('Spend:Q', format='$,.2f')]
+                            )
+                            
+                            # Points with shape encoding for redundant encoding
+                            trend_points = alt.Chart(df_plot_trends).mark_point(filled=True, size=60).encode(
+                                x='academic_year:O',
+                                y='Spend:Q',
+                                color='Institution:N',
+                                shape=alt.Shape('Institution:N', legend=alt.Legend(title="Institution")),
+                                tooltip=['Institution', 'academic_year', alt.Tooltip('Spend:Q', format='$,.2f')]
+                            )
+                            
+                            trend_chart = alt.layer(trend_lines, trend_points).properties(
+                                height=400,
+                                title=f"Historical Trends: {metric_to_plot}"
+                            ).interactive()
+                            
+                            st.altair_chart(trend_chart, use_container_width=True)
+                            
+                            with st.expander("♿ Accessible Data Table - Historical Trends"):
+                                st.dataframe(
+                                    df_pivot,
+                                    width="stretch"
+                                )
                         else:
                             st.warning("No data returned for selected institutions in other academic years.")
                     else:

@@ -205,10 +205,11 @@ else:
         col2.metric("Median Market Share", f"{median_share:.1%}")
         col3.metric("Median CAGR", f"{median_cagr:.1%}")
 
-        scatter = alt.Chart(plot_data).mark_circle(size=150, opacity=0.8).encode(
+        scatter = alt.Chart(plot_data).mark_point(size=150, opacity=0.8, filled=True).encode(
             x=alt.X('market_share:Q', title="Market Share (2024)", axis=alt.Axis(format='%')),
             y=alt.Y('cagr:Q', title="5-Year CAGR (2019-2024)", axis=alt.Axis(format='%')),
             color=alt.Color('institution:N', legend=None),
+            shape=alt.Shape('institution:N', legend=None),
             tooltip=[
                 alt.Tooltip('institution:N', title="Institution"),
                 alt.Tooltip('2024:Q', title="Degrees (2024)"),
@@ -227,7 +228,7 @@ else:
 
         st.altair_chart(chart, width='stretch')
 
-        with st.expander("View Underlying Data"):
+        with st.expander("♿ Accessible Data Table - Market Share vs CAGR"):
             st.dataframe(plot_data[['institution', '2019', '2024', 'market_share', 'cagr']].style.format({
                 'market_share': '{:.1%}',
                 'cagr': '{:.1%}'
