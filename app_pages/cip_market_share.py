@@ -3,17 +3,7 @@ import pandas as pd
 import altair as alt
 import os
 import numpy as np
-import pyarrow.parquet as pq
-
-def read_parquet_upper(file_path, cols):
-    schema = pq.read_schema(file_path)
-    col_map = {name.upper(): name for name in schema.names}
-    actual_cols = [col_map.get(c, c) for c in cols]
-    
-    df = pd.read_parquet(file_path, columns=actual_cols)
-    df.columns = df.columns.str.upper()
-    return df
-
+import duckdb
 
 # Cache the data load
 @st.cache_data(ttl=3600)
@@ -22,56 +12,55 @@ def load_completions_data():
         file_path = 'data/app/completions_michigan.parquet'
         if not os.path.exists(file_path):
             return pd.DataFrame()
-        df = pd.read_parquet(file_path)
-        # completions_michigan already contains: year, institution, cip_code, award_level, total_degrees
-        return df[['year', 'institution', 'cip_code', 'award_level', 'total_degrees']]
+        query = """
+            SELECT year, institution, cip_code, award_level, total_degrees
+            FROM 'data/app/completions_michigan.parquet'
+        """
+        return duckdb.query(query).df()
     except Exception as e:
         st.error(f"Failed to load completions data from local files: {e}")
         return pd.DataFrame()
- 
+
 @st.cache_data(ttl=3600)
 def load_cip_dictionary():
     try:
-        df = pd.read_parquet('data/app/cip_dictionary.parquet')
-        
-        # Determine columns dynamically
-        fam_col = 'cip_family'
-        if 'cip_family' not in df.columns and 'cipfamily' in df.columns:
-            fam_col = 'cipfamily'
-            
-        code_col = 'cip_code'
-        if 'cip_code' not in df.columns and 'cipcode' in df.columns:
-            code_col = 'cipcode'
-            
-        df['cip_family_clean'] = df[fam_col].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
-        df['cip_code_clean'] = df[code_col].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
-            
-        return df[['cip_family_clean', 'cip_code_clean', 'ciptitle']].rename(columns={
-            'cip_family_clean': 'cip_family',
-            'cip_code_clean': 'cip_code'
-        })
+        file_path = 'data/app/cip_dictionary.parquet'
+        if not os.path.exists(file_path):
+            return pd.DataFrame()
+        query = """
+            SELECT 
+                REPLACE(REPLACE(CAST(cipfamily AS VARCHAR), '="', ''), '"', '') AS cip_family,
+                REPLACE(REPLACE(CAST(cipcode AS VARCHAR), '="', ''), '"', '') AS cip_code,
+                ciptitle
+            FROM 'data/app/cip_dictionary.parquet'
+        """
+        return duckdb.query(query).df()
     except Exception as e:
         st.error(f"Failed to load CIP dictionary from local files: {e}")
         return pd.DataFrame()
 
 
 # --- SPRINT 2: Michigan occupational demand loaders ---
-# These read the two parquet tables produced by build_demand.py.
-# If they aren't built yet, the loaders return empty frames and the
-# demand section below shows a friendly "run build_demand.py" message.
 @st.cache_data(ttl=3600)
 def load_demand_summary():
     try:
-        return pd.read_parquet('data/app/cip_demand_summary.parquet')
+        file_path = 'data/app/cip_demand_summary.parquet'
+        if not os.path.exists(file_path):
+            return pd.DataFrame()
+        return duckdb.query(f"SELECT * FROM '{file_path}'").df()
     except Exception:
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def load_demand_itemized():
     try:
-        return pd.read_parquet('data/app/cip_demand_itemized.parquet')
+        file_path = 'data/app/cip_demand_itemized.parquet'
+        if not os.path.exists(file_path):
+            return pd.DataFrame()
+        return duckdb.query(f"SELECT * FROM '{file_path}'").df()
     except Exception:
         return pd.DataFrame()
+
 
 
 st.title("Michigan Public Universities: CIP Market Share & CAGR")

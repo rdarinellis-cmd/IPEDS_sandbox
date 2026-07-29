@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-
-# Removed st.set_page_config as it is now in app.py
-
+import duckdb
 
 # Academic Year Configuration matching the MS Access database tables
 YEARS_CONFIG = {
@@ -57,10 +55,10 @@ def get_available_years():
     try:
         file_path = "data/app/spending_benchmarks.parquet"
         if os.path.exists(file_path):
-            df = pd.read_parquet(file_path, columns=['year_label'])
-            return df['year_label'].unique().tolist()
+            df = duckdb.query(f"SELECT DISTINCT year_label FROM '{file_path}'").df()
+            return df['year_label'].tolist()
         return list(YEARS_CONFIG.keys())
-    except Exception as e:
+    except Exception:
         return list(YEARS_CONFIG.keys())
 
 available_years = get_available_years()
@@ -184,20 +182,8 @@ if show_r1:
 if show_r2:
     carnegies.append(16)
 
-# 4. Fetch and Process Data
-import pyarrow.parquet as pq
-
-def read_parquet_upper(file_path, cols):
-    schema = pq.read_schema(file_path)
-    col_map = {name.upper(): name for name in schema.names}
-    actual_cols = [col_map.get(c, c) for c in cols]
-    
-    df = pd.read_parquet(file_path, columns=actual_cols)
-    df.columns = df.columns.str.upper()
-    return df
-
 @st.cache_data(ttl=600)
-def load_spending_data(year_cfg, controls_list, carnegies_list, filter_urban):
+def load_spending_data(year_label, controls_list, carnegies_list, filter_urban):
     if not controls_list or not carnegies_list:
         return pd.DataFrame()
         
@@ -206,42 +192,37 @@ def load_spending_data(year_cfg, controls_list, carnegies_list, filter_urban):
         if not os.path.exists(file_path):
             return pd.DataFrame()
             
-        df = pd.read_parquet(file_path)
+        controls_sql = ", ".join(map(str, controls_list))
+        carnegies_sql = ", ".join(map(str, carnegies_list))
+        year_clause = f"AND year_label = '{year_label}'" if year_label else ""
+        urban_clause = "AND locale IN (11, 12, 13)" if filter_urban else ""
         
-        # Find matching year label for the config
-        year_label = None
-        for label, cfg in YEARS_CONFIG.items():
-            if cfg == year_cfg:
-                year_label = label
-                break
-                
-        if year_label is not None:
-            df = df[df['year_label'] == year_label]
-            
-        # Apply filters (note columns are lowercase in compiled parquet)
-        df = df[df['control'].isin(controls_list)]
-        df = df[df['c21basic'].isin(carnegies_list)]
-        if filter_urban:
-            df = df[df['locale'].isin([11, 12, 13])]
-            
-        # Rename columns to uppercase to match expected casing in the dashboard
-        df = df.rename(columns={
-            'unitid': 'UNITID',
-            'instnm': 'INSTNM',
-            'control': 'CONTROL',
-            'c21basic': 'C21BASIC',
-            'locale': 'LOCALE'
-        })
-        
-        return df[['UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE', 'fte_enrollment', 
-                   'spend_instruction', 'spend_academic_support', 'spend_student_services']]
+        query = f"""
+            SELECT 
+                unitid AS UNITID,
+                instnm AS INSTNM,
+                control AS CONTROL,
+                c21basic AS C21BASIC,
+                locale AS LOCALE,
+                fte_enrollment,
+                spend_instruction,
+                spend_academic_support,
+                spend_student_services
+            FROM '{file_path}'
+            WHERE control IN ({controls_sql})
+              AND c21basic IN ({carnegies_sql})
+              {year_clause}
+              {urban_clause}
+        """
+        return duckdb.query(query).df()
     except Exception as e:
         st.error(f"Failed to load spending data: {e}")
         return pd.DataFrame()
 
 # Load data
 with st.spinner(f"Fetching local records for {selected_year}..."):
-    df_raw = load_spending_data(year_config, controls, carnegies, urban_only)
+    df_raw = load_spending_data(selected_year, controls, carnegies, urban_only)
+
 
 # Tabs Navigation
 tab_summary, tab_trends, tab_dictionary = st.tabs([
@@ -360,26 +341,25 @@ with tab_trends:
         
         if trend_schools:
             selected_ids = df[df['INSTNM'].isin(trend_schools)]['UNITID'].tolist()
-            selected_ids_str = ", ".join(map(str, selected_ids))
             
-            # Fetch data across all available years
+            # Fetch data across all available years using DuckDB
             try:
                 with st.spinner("Compiling historical trends from local files..."):
                     file_path = "data/app/spending_benchmarks.parquet"
-                    if os.path.exists(file_path):
-                        all_spend = pd.read_parquet(file_path)
-                        
-                        # Filter for selected peer IDs
-                        all_spend['unitid_str'] = all_spend['unitid'].astype(str)
-                        sel_ids_str = [str(i) for i in selected_ids]
-                        
-                        df_trends_raw = all_spend[all_spend['unitid_str'].isin(sel_ids_str)].copy()
-                        
-                        # Rename columns to match expected schema
-                        df_trends_raw = df_trends_raw.rename(columns={
-                            'year_label': 'academic_year',
-                            'instnm': 'INSTNM'
-                        })
+                    if os.path.exists(file_path) and selected_ids:
+                        ids_sql = ", ".join(map(str, selected_ids))
+                        query = f"""
+                            SELECT 
+                                year_label AS academic_year,
+                                instnm AS INSTNM,
+                                spend_instruction,
+                                spend_academic_support,
+                                spend_student_services,
+                                fte_enrollment
+                            FROM '{file_path}'
+                            WHERE unitid IN ({ids_sql})
+                        """
+                        df_trends_raw = duckdb.query(query).df()
                         
                         if not df_trends_raw.empty:
                             df_trends = df_trends_raw.copy()
@@ -415,23 +395,22 @@ with tab_dictionary:
     if search_query:
         try:
             with st.spinner("Searching definitions..."):
-                meta_df = pd.read_parquet('data/app/metadata_dictionary.parquet')
-                
-                # Make search case-insensitive
-                q = search_query.lower()
-                
-                # Filter where any of the target columns contain the query string
-                mask = (
-                    meta_df['var_name'].fillna('').str.lower().str.contains(q, regex=False) |
-                    meta_df['var_title'].fillna('').str.lower().str.contains(q, regex=False) |
-                    meta_df['long_description'].fillna('').str.lower().str.contains(q, regex=False) |
-                    meta_df['table_title'].fillna('').str.lower().str.contains(q, regex=False)
-                )
-                
-                df_dict = meta_df[mask].copy()
-                
-                if not df_dict.empty:
-                    df_dict = df_dict.sort_values(by=['year', 'table_name', 'var_name'], ascending=[False, True, True]).head(100)
+                file_path = 'data/app/metadata_dictionary.parquet'
+                if os.path.exists(file_path):
+                    q_clean = search_query.replace("'", "''").lower()
+                    query = f"""
+                        SELECT year, table_name, table_title, var_name, var_title, long_description, data_type, format
+                        FROM '{file_path}'
+                        WHERE LOWER(COALESCE(var_name, '')) LIKE '%{q_clean}%'
+                           OR LOWER(COALESCE(var_title, '')) LIKE '%{q_clean}%'
+                           OR LOWER(COALESCE(long_description, '')) LIKE '%{q_clean}%'
+                           OR LOWER(COALESCE(table_title, '')) LIKE '%{q_clean}%'
+                        ORDER BY year DESC, table_name ASC, var_name ASC
+                        LIMIT 100
+                    """
+                    df_dict = duckdb.query(query).df()
+                else:
+                    df_dict = pd.DataFrame()
                 
             if not df_dict.empty:
                 st.dataframe(
@@ -455,3 +434,4 @@ with tab_dictionary:
             st.error(f"Data dictionary file not found or search failed. Details: {e}")
     else:
         st.info("Enter a keyword to query variables and their descriptions from the metadata dictionary.")
+
