@@ -95,17 +95,40 @@ These rules are formalized for AI developer agents in the workspace rules file a
 ## 🤖 7. Context Anchor for Antigravity Chat
 Whenever you start a brand new chat tab in your IDE, paste this paragraph to ground the AI agent:
 > "We are working on the IPEDS Streamlit dashboard project located in this workspace root. Our architecture relies purely on local caching via compressed .parquet tables and Excel lookup files inside /dictionaries, running on a local Streamlit server and deployed to Streamlit Community Cloud via GitHub. No external cloud databases or cloud configuration elements exist in our stack. Please read ARCHITECTURE.md in this directory to align your code generation scripts, terminal selections, and prompt styles with our blueprint."
+
 ## 🎨 8. UI, Brand Identity & Title II ADA Accessibility Guidelines
 
 All dashboard pages, widgets, and data visualizations must strictly adhere to the Wayne State University Identity Style Guide (2026) and Federal ADA Title II / WCAG 2.1 Level AA compliance standards.
 
 ### A. Wayne State Brand Color System
-* **Primary WSU Green:** `#0C5449` (PMS 561c) or `#0B4C43` (Digital Web Header).
-* **Primary WSU Gold:** `#FFCC33` (PMS 1225c). Used exclusively for accents and chart highlights.
-* **Forbidden Combinations:** Never use Gold text on Green background or White text on Gold background (violates WCAG contrast rules).
+* **Primary WSU Green:** `#0C5449` (PMS 561c) or `#0B4C43` (Digital Web Header). Used for primary buttons, active tabs, header bands, and key metrics.
+* **Primary WSU Gold:** `#FFCC33` (PMS 1225c). Used exclusively for accents, callout borders, or chart highlights.
+* **Neutral Backgrounds:** White (`#FFFFFF`) or Light Gray (`#F8F9FA`).
+* **Dark Body Text:** Charcoal/Black (`#111111` or `#222222`).
+* **Forbidden Color Combinations:** 
+  * ❌ NEVER use Gold text on a Green background (fails WCAG contrast limits).
+  * ❌ NEVER use White text on a Gold background.
+  * ❌ NEVER use Light Green (`#4A8075`) for body text.
 
-### B. Title II ADA / WCAG 2.1 AA Accessibility
-* **Color Contrast:** All body text must maintain a minimum **4.5:1 contrast ratio**.
-* **Redundant Encoding:** Charts (Altair) must use shapes, dashed lines, or explicit labels alongside color—never color alone.
-* **Data Equivalents:** Include an accessible `st.dataframe()` or `st.expander()` data view beneath every graphic visualization for screen reader users.
-* **Widget Labeling:** All inputs must have explicit labels for screen reader accessibility.
+### B. Typography & Brand Styling
+* **Font Hierarchy:** Primary web body copy uses `Lato` or `Calibri` (sans-serif fallback). Headlines use `Lato Bold` / `Avenir Heavy`.
+* **Header Logos & Branding:**
+  * Displays the official WSU Shield/Wordmark as an SVG or high-resolution vector (minimum height **24px**).
+  * Required `alt` text on any WSU logo image: `"Wayne State University"`.
+  * WSU shield icon must be set as the browser `favicon`.
+
+### C. ADA Title II / WCAG 2.1 AA Accessibility Standards
+Under Title II of the ADA, all public university web applications must meet WCAG 2.1 Level AA:
+1. **Color Contrast Thresholds (WCAG 1.4.3 & 1.4.11):**
+   * Normal text (< 18pt or < 14pt bold): **Minimum 4.5:1 contrast ratio** against its background.
+   * Large text (≥ 18pt or ≥ 14pt bold) and UI components/icons: **Minimum 3:0:1 contrast ratio**.
+   * Test all custom CSS injected via `st.markdown()` against these ratios.
+2. **Information Conveyance Beyond Color (WCAG 1.4.1):**
+   * Data charts (Altair / Plotly) must **never rely solely on color** to distinguish data categories or trends.
+   * Combine color with **shapes, line patterns (dashed vs. solid), explicit text labels, or direct data annotations**.
+3. **Screen Reader & Keyboard Accessibility:**
+   * Every Streamlit widget (`st.selectbox`, `st.text_input`, `st.button`) MUST have an explicit label. If a visual label is hidden using `label_visibility="collapsed"`, ensure a clear label exists for assistive screen readers.
+   * Interactive charts must include accessible data tables (e.g., using `st.dataframe()` or an expandable data view `st.expander("View Accessible Data Table")`) directly below the visual chart.
+4. **Target Sizing & Zoom:**
+   * Interactive elements must maintain a minimum touch/click target size of **24x24 pixels**.
+   * Layouts must remain fully functional when zoomed up to **200%** in browser settings without breaking grid alignments.

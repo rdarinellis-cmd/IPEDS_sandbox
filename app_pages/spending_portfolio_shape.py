@@ -335,7 +335,7 @@ else:
                 title=f"WSU vs Peer {selected_cat} Share Trend"
             ).resolve_scale(y='shared')
 
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width="stretch")
 
             with st.expander("♿ Accessible Data Table - Share Trend Details"):
                 df_trend_pivot = df_frame.pivot(index='YEAR', columns='INSTNM', values=selected_cat)

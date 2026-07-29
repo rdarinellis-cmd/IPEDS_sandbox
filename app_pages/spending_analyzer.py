@@ -451,7 +451,7 @@ with tab_trends:
                                 title=f"Historical Trends: {metric_to_plot}"
                             ).interactive()
                             
-                            st.altair_chart(trend_chart, use_container_width=True)
+                            st.altair_chart(trend_chart, width="stretch")
                             
                             with st.expander("♿ Accessible Data Table - Historical Trends"):
                                 st.dataframe(
