@@ -122,6 +122,7 @@ html, body, [class*="css"], .stMarkdown {
 
 # Title Section
 st.title("🎓 Higher Education Spending Analyzer")
+st.caption("#### Scope: Public & Private Peer Institutions (R1/R2) | Years: 2019–2024 | Metrics: Spending / FTE student")
 st.markdown("Compare and analyze spending on **Instruction**, **Academic Support**, and **Student Services** per FTE student using the full IPEDS Access Database records.")
 
 # 3. Sidebar Filter Configuration
@@ -141,6 +142,14 @@ show_r2 = st.sidebar.checkbox("R2 (High Research)", value=True)
 
 st.sidebar.subheader("Location")
 urban_only = st.sidebar.toggle("Urban Schools Only", value=False)
+
+st.sidebar.markdown("""
+---
+**Definitions & Sources:**
+- **Data Sources:** NCES [IPEDS Finance Survey](https://nces.ed.gov/ipeds/) (Tables `F1A`/`F2`/`F3`) and [IPEDS Fall Enrollment Survey](https://nces.ed.gov/ipeds/) (Table `EF12`).
+- **FTE Enrollment:** 12-month instructional activity Full-Time Equivalent (FTE) enrollment.
+- **Spending Metrics:** Calculated as raw expense divided by 12-month FTE.
+""")
 
 # Mappings from Data Dictionary
 CONTROL_MAP = {

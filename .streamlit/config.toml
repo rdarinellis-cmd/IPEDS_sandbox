@@ -1,0 +1,10 @@
+[theme]
+primaryColor = "#0C5449"          # WSU Green
+backgroundColor = "#FFFFFF"       # Clean White Background
+secondaryBackgroundColor = "#F4F6F5" # Very Light Mint/Gray Tint for Sidebars/Cards
+textColor = "#111111"             # Deep Charcoal for 4.5:1+ WCAG AA Text Contrast
+font = "sans serif"               # Maps to clean system sans-serif (Lato/Calibri equivalent)
+
+[server]
+headless = true
+enableCORS = false

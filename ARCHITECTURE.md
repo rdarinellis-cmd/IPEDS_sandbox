@@ -85,6 +85,27 @@ Production deployments are fully automated. When you push your code to the `main
 - If cross-table joins or grouping operations become slow, integrate `duckdb` into the project requirements.
 - DuckDB executes localized serverless SQL queries straight inside the application's memory without requiring external databases or server processes.
 
-## 🤖 6. Context Anchor for Antigravity Chat
+## 🎨 6. Dashboard Design & Style Guidelines
+All dashboards in this project must adhere to the following styling and layout specifications:
+- **Data Provenance & Definitions Note:** Provide a source definition note in the sidebar or at the page bottom, confirming whether metrics show awards conferred or unique student headcounts, with active links to [NCES IPEDS](https://nces.ed.gov/ipeds/) or [College Scorecard Data Documentation](https://collegescorecard.ed.gov/data/documentation/).
+- **Contextual Subtitles:** Display subtitles under the main titles detailing analysis scopes/cohorts (e.g., "Michigan Public Universities", "Urban Peers", "Public R1 Universities"), timeframes (e.g., "2019 to 2024"), and core metrics.
+
+These rules are formalized for AI developer agents in the workspace rules file at [.agents/AGENTS.md](file:///Users/ac7940/Antigravity/IPEDS_sandbox/.agents/AGENTS.md).
+
+## 🤖 7. Context Anchor for Antigravity Chat
 Whenever you start a brand new chat tab in your IDE, paste this paragraph to ground the AI agent:
 > "We are working on the IPEDS Streamlit dashboard project located in this workspace root. Our architecture relies purely on local caching via compressed .parquet tables and Excel lookup files inside /dictionaries, running on a local Streamlit server and deployed to Streamlit Community Cloud via GitHub. No external cloud databases or cloud configuration elements exist in our stack. Please read ARCHITECTURE.md in this directory to align your code generation scripts, terminal selections, and prompt styles with our blueprint."
+## 🎨 8. UI, Brand Identity & Title II ADA Accessibility Guidelines
+
+All dashboard pages, widgets, and data visualizations must strictly adhere to the Wayne State University Identity Style Guide (2026) and Federal ADA Title II / WCAG 2.1 Level AA compliance standards.
+
+### A. Wayne State Brand Color System
+* **Primary WSU Green:** `#0C5449` (PMS 561c) or `#0B4C43` (Digital Web Header).
+* **Primary WSU Gold:** `#FFCC33` (PMS 1225c). Used exclusively for accents and chart highlights.
+* **Forbidden Combinations:** Never use Gold text on Green background or White text on Gold background (violates WCAG contrast rules).
+
+### B. Title II ADA / WCAG 2.1 AA Accessibility
+* **Color Contrast:** All body text must maintain a minimum **4.5:1 contrast ratio**.
+* **Redundant Encoding:** Charts (Altair) must use shapes, dashed lines, or explicit labels alongside color—never color alone.
+* **Data Equivalents:** Include an accessible `st.dataframe()` or `st.expander()` data view beneath every graphic visualization for screen reader users.
+* **Widget Labeling:** All inputs must have explicit labels for screen reader accessibility.

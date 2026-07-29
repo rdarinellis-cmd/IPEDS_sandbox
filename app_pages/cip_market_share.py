@@ -64,6 +64,7 @@ def load_demand_itemized():
 
 
 st.title("Michigan Public Universities: CIP Market Share & CAGR")
+st.caption("#### Scope: Michigan Public Universities | Years: 2019 to 2024 | Metrics: Degrees Conferred, Market Share, CAGR")
 
 with st.spinner("Loading local data..."):
     df = load_completions_data()
@@ -141,7 +142,9 @@ selected_cips = st.sidebar.multiselect(
 
 st.sidebar.markdown("""
 ---
-**Definitions:**
+**Definitions & Sources:**
+- **Data Source:** NCES [IPEDS Completions Survey](https://nces.ed.gov/ipeds/) (Table `C_A` - Awards Conferred).
+- **Metric Scope:** Displays the count of **degrees/awards conferred** (First Major only), not unique student headcounts.
 - **CAGR:** 5-year Cumulative Annual Growth Rate (2019 to 2024). Calculated as `((2024 + 1)/(2019 + 1))^(1/5) - 1` (using +1 Laplace smoothing to avoid division by zero).
 - **Market Share:** Calculated based on the most recent year (2024) degrees awarded out of the *selected* universities.
 """)
