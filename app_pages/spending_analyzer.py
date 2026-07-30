@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import duckdb
+import altair as alt
 
 # Academic Year Configuration matching the MS Access database tables
 YEARS_CONFIG = {
