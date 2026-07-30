@@ -118,7 +118,7 @@ html, body, [class*="css"], .stMarkdown {
 
 # Title Section
 st.title("🎓 Higher Education Spending Analyzer")
-st.caption("#### Scope: Public & Private Peer Institutions (R1/R2) | Years: 2019–2024 | Metrics: Spending / FTE student")
+st.caption(f"#### Scope: {selected_cohort} | Years: 2019–2024 | Metrics: Spending / FTE student")
 st.markdown("Compare and analyze spending on **Instruction**, **Academic Support**, and **Student Services** per FTE student using the full IPEDS Access Database records.")
 
 # 3. Sidebar Filter Configuration
@@ -128,16 +128,12 @@ st.sidebar.header("Filter Settings")
 selected_year = st.sidebar.selectbox("Academic Year", available_years, index=0)
 year_config = YEARS_CONFIG[selected_year]
 
-st.sidebar.subheader("Control of Institution")
-show_public = st.sidebar.checkbox("Public", value=True)
-show_private = st.sidebar.checkbox("Private (FASB)", value=True)
-
-st.sidebar.subheader("Carnegie Classification")
-show_r1 = st.sidebar.checkbox("R1 (Very High Research)", value=True)
-show_r2 = st.sidebar.checkbox("R2 (High Research)", value=True)
-
-st.sidebar.subheader("Location")
-urban_only = st.sidebar.toggle("Urban Schools Only", value=False)
+# Cohort selector
+selected_cohort = st.sidebar.selectbox(
+    "Select Cohort Group",
+    options=["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"],
+    index=1
+)
 
 st.sidebar.markdown("""
 ---
@@ -174,33 +170,14 @@ LOCALE_MAP = {
     43: "Rural: Remote"
 }
 
-# Resolve selected lists for SQL query
-controls = []
-if show_public:
-    controls.append(1)
-if show_private:
-    controls.extend([2, 3])
-
-carnegies = []
-if show_r1:
-    carnegies.append(15)
-if show_r2:
-    carnegies.append(16)
-
 @st.cache_data(ttl=600)
-def load_spending_data(year_label, controls_list, carnegies_list, filter_urban):
-    if not controls_list or not carnegies_list:
-        return pd.DataFrame()
-        
+def load_spending_data(year_label):
     try:
         file_path = "data/app/spending_benchmarks.parquet"
         if not os.path.exists(file_path):
             return pd.DataFrame()
             
-        controls_sql = ", ".join(map(str, controls_list))
-        carnegies_sql = ", ".join(map(str, carnegies_list))
-        year_clause = f"AND year_label = '{year_label}'" if year_label else ""
-        urban_clause = "AND locale IN (11, 12, 13)" if filter_urban else ""
+        year_clause = f"WHERE year_label = '{year_label}'" if year_label else ""
         
         query = f"""
             SELECT 
@@ -212,12 +189,12 @@ def load_spending_data(year_label, controls_list, carnegies_list, filter_urban):
                 fte_enrollment,
                 spend_instruction,
                 spend_academic_support,
-                spend_student_services
+                spend_student_services,
+                is_mi_public,
+                is_urban_peer,
+                is_public_r1
             FROM '{file_path}'
-            WHERE control IN ({controls_sql})
-              AND c21basic IN ({carnegies_sql})
-              {year_clause}
-              {urban_clause}
+            {year_clause}
         """
         return duckdb.query(query).df()
     except Exception as e:
@@ -226,7 +203,25 @@ def load_spending_data(year_label, controls_list, carnegies_list, filter_urban):
 
 # Load data
 with st.spinner(f"Fetching local records for {selected_year}..."):
-    df_raw = load_spending_data(selected_year, controls, carnegies, urban_only)
+    df_all = load_spending_data(selected_year)
+
+if not df_all.empty:
+    if selected_cohort == "Michigan Publics (MASU)":
+        df_cohort = df_all[df_all['is_mi_public'] == 1].copy()
+    elif selected_cohort == "Urban Peer Publics":
+        df_cohort = df_all[df_all['is_urban_peer'] == 1].copy()
+    else:
+        df_cohort = df_all[df_all['is_public_r1'] == 1].copy()
+        
+    all_cohort_schools = sorted(df_cohort['INSTNM'].unique().tolist())
+    selected_schools = st.sidebar.multiselect(
+        "Select Universities",
+        options=all_cohort_schools,
+        default=all_cohort_schools
+    )
+    df_raw = df_cohort[df_cohort['INSTNM'].isin(selected_schools)].copy()
+else:
+    df_raw = pd.DataFrame()
 
 
 # Tabs Navigation
@@ -252,7 +247,7 @@ if not df_raw.empty:
 
 with tab_summary:
     if df_raw.empty:
-        st.warning("No data found matching the selected filters. Please verify you selected at least one Control type and Carnegie Classification.")
+        st.warning("No data found matching the selected filters. Please select at least one university in the sidebar.")
     else:
         # Aggregate values for KPI cards
         total_schools = len(df)

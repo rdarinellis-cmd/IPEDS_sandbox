@@ -106,6 +106,7 @@ def compile_completions():
             break
             
     hd = read_parquet_upper(hd2024_path, ['UNITID', 'INSTNM', 'CONTROL', carnegie_col])
+    hd['UNITID'] = hd['UNITID'].astype(int)
     hd = hd.rename(columns={carnegie_col: 'C21BASIC'})
     
     # Define cohorts
@@ -142,6 +143,7 @@ def compile_completions():
             continue
             
         c_df = read_parquet_upper(c_path, ['UNITID', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT'])
+        c_df['UNITID'] = c_df['UNITID'].astype(int)
         
         # Filter: first major, selected IDs
         c_df = c_df[c_df['UNITID'].isin(selected_unitids)]
@@ -209,8 +211,8 @@ def compile_dictionaries():
 
 
 def compile_spending():
-    """Aggregate spending and FTE data for R1 and R2 institutions globally."""
-    print("📦 Compiling Spending Benchmarks (R1/R2)...")
+    """Aggregate spending and FTE data for Michigan publics, Urban Peers, and Public R1s."""
+    print("📦 Compiling Spending Benchmarks (Michigan Publics, Urban Peers, Public R1s)...")
     
     YEARS_CONFIG = {
         "2024-25 (Provisional)": {"hd": "hd2024", "ef": "drvef122024", "f1": "f2324_f1a", "f2": "f2324_f2", "f3": "f2324_f3"},
@@ -242,19 +244,36 @@ def compile_spending():
                 break
                 
         hd = read_parquet_upper(hd_path, ['UNITID', 'INSTNM', 'CONTROL', carnegie_col, 'LOCALE'])
+        hd['UNITID'] = hd['UNITID'].astype(int)
         hd = hd.rename(columns={carnegie_col: 'C21BASIC'})
         ef = read_parquet_upper(ef_path, ['UNITID', 'FTE12MN'])
+        ef['UNITID'] = ef['UNITID'].astype(int)
         f1 = read_parquet_upper(f1_path, ['UNITID', 'F1C011', 'F1C051', 'F1C061'])
+        f1['UNITID'] = f1['UNITID'].astype(int)
         f2 = read_parquet_upper(f2_path, ['UNITID', 'F2E011', 'F2E041', 'F2E051'])
+        f2['UNITID'] = f2['UNITID'].astype(int)
         f3 = read_parquet_upper(f3_path, ['UNITID', 'F3E011', 'F3E03A1', 'F3E03B1'])
+        f3['UNITID'] = f3['UNITID'].astype(int)
         
-        # Filter to R1 (15) and R2 (16) institutions only (keeps size tiny!)
-        # Coerce types for robustness
+        # Define cohorts
+        mi_names = MICHIGAN_UNIVERSITIES
+        urban_peer_ids = [172644, 133951, 225511, 201885, 139940, 216339, 234030, 157289, 187985, 145600, 100663]
+        
+        hd['CONTROL'] = pd.to_numeric(hd['CONTROL'], errors='coerce')
         hd['C21BASIC'] = pd.to_numeric(hd['C21BASIC'], errors='coerce')
-        hd_r12 = hd[hd['C21BASIC'].isin([15, 16])].copy()
+        
+        hd_mi = hd[hd['INSTNM'].isin(mi_names)].copy()
+        hd_urban = hd[hd['UNITID'].isin(urban_peer_ids)].copy()
+        hd_r1 = hd[(hd['CONTROL'] == 1) & (hd['C21BASIC'] == 15)].copy()
+        
+        # Merge all selected cohort schools
+        hd_all_selected = pd.concat([hd_mi, hd_urban, hd_r1]).drop_duplicates(subset=['UNITID']).copy()
+        hd_all_selected['is_mi_public'] = hd_all_selected['INSTNM'].isin(mi_names).astype(int)
+        hd_all_selected['is_urban_peer'] = hd_all_selected['UNITID'].isin(urban_peer_ids).astype(int)
+        hd_all_selected['is_public_r1'] = ((hd_all_selected['CONTROL'] == 1) & (hd_all_selected['C21BASIC'] == 15)).astype(int)
         
         # Merge
-        m_df = hd_r12.merge(ef, on='UNITID', how='left')
+        m_df = hd_all_selected.merge(ef, on='UNITID', how='left')
         m_df = m_df.merge(f1, on='UNITID', how='left')
         m_df = m_df.merge(f2, on='UNITID', how='left')
         m_df = m_df.merge(f3, on='UNITID', how='left')
@@ -271,7 +290,8 @@ def compile_spending():
         
         spending_dfs.append(m_df[[
             'year_label', 'UNITID', 'INSTNM', 'CONTROL', 'C21BASIC', 'LOCALE', 'fte_enrollment',
-            'spend_instruction', 'spend_academic_support', 'spend_student_services'
+            'spend_instruction', 'spend_academic_support', 'spend_student_services',
+            'is_mi_public', 'is_urban_peer', 'is_public_r1'
         ]])
         
     if spending_dfs:
@@ -287,28 +307,45 @@ def compile_spending():
 
 
 def compile_portfolio_shape():
-    """Compile the portfolio shape metrics for Michigan publics and Urban Peers for 2020-2024."""
-    print("📦 Compiling Portfolio Shape (Michigan Publics + Urban Peers)...")
-    
-    # 25 unique IDs for peer groups
-    ALL_PEER_IDS = [
-        168528, 168740, 169080, 169248, 169798, 170976, 171128, 171137, 171474, 172051, 
-        172420, 172644, 246532, 451433, 495767, 133951, 225511, 201885, 139940, 216339, 
-        234030, 157289, 187985, 145600, 100663
-    ]
-    ids_sql = ", ".join(map(str, ALL_PEER_IDS))
+    """Compile the portfolio shape metrics for Michigan publics, Urban Peers, and Public R1s for 2020-2024."""
+    print("📦 Compiling Portfolio Shape (Michigan Publics + Urban Peers + Public R1s)...")
     
     # Load names and characteristics from hd2024
     import duckdb
     hd_path = os.path.join(RAW_DIR, "hd2024.parquet")
     if os.path.exists(hd_path):
-        hd_df = duckdb.query(f"SELECT UNITID, INSTNM, STABBR FROM '{hd_path}' WHERE UNITID IN ({ids_sql})").df()
-        hd_df.columns = hd_df.columns.str.upper()
+        schema = pq.read_schema(hd_path)
+        carnegie_col = 'C21BASIC'
+        for col_candidate in ['C21BASIC', 'C18BASIC', 'C15BASIC', 'CCBASIC', 'CARNEGIE']:
+            if any(name.upper() == col_candidate for name in schema.names):
+                carnegie_col = col_candidate
+                break
+        hd = read_parquet_upper(hd_path, ['UNITID', 'INSTNM', 'CONTROL', carnegie_col, 'STABBR'])
+        hd['UNITID'] = hd['UNITID'].astype(int)
+        hd = hd.rename(columns={carnegie_col: 'C21BASIC'})
     else:
         print("   ❌ Error: hd2024.parquet not found in raw. Cannot compile portfolio shape.")
         return
-        
-    hd_df['UNITID'] = hd_df['UNITID'].astype(int)
+
+    # Define cohorts
+    mi_names = MICHIGAN_UNIVERSITIES
+    urban_peer_ids = [172644, 133951, 225511, 201885, 139940, 216339, 234030, 157289, 187985, 145600, 100663]
+    
+    hd['CONTROL'] = pd.to_numeric(hd['CONTROL'], errors='coerce')
+    hd['C21BASIC'] = pd.to_numeric(hd['C21BASIC'], errors='coerce')
+    
+    hd_mi = hd[hd['INSTNM'].isin(mi_names)].copy()
+    hd_urban = hd[hd['UNITID'].isin(urban_peer_ids)].copy()
+    hd_r1 = hd[(hd['CONTROL'] == 1) & (hd['C21BASIC'] == 15)].copy()
+    
+    # Merge and build flags
+    hd_all = pd.concat([hd_mi, hd_urban, hd_r1]).drop_duplicates(subset=['UNITID']).copy()
+    hd_all['is_mi_public'] = hd_all['INSTNM'].isin(mi_names).astype(int)
+    hd_all['is_urban_peer'] = hd_all['UNITID'].isin(urban_peer_ids).astype(int)
+    hd_all['is_public_r1'] = ((hd_all['CONTROL'] == 1) & (hd_all['C21BASIC'] == 15)).astype(int)
+    
+    ALL_PEER_IDS = hd_all['UNITID'].tolist()
+    ids_sql = ", ".join(map(str, ALL_PEER_IDS))
     
     YEAR_MAPS = {
         2020: {"drvf": "drvf2020.parquet", "raw_gasb": "f1920_f1a.parquet"},
@@ -329,12 +366,14 @@ def compile_portfolio_shape():
             
         drvf_df = duckdb.query(f"SELECT * FROM '{drvf_path}' WHERE UNITID IN ({ids_sql})").df()
         drvf_df.columns = drvf_df.columns.str.upper()
+        drvf_df['UNITID'] = drvf_df['UNITID'].astype(int)
         
         raw_om_map = {}
         if os.path.exists(raw_gasb_path):
             try:
                 om_df = duckdb.query(f"SELECT UNITID, F1C19OM FROM '{raw_gasb_path}' WHERE UNITID IN ({ids_sql})").df()
                 om_df.columns = om_df.columns.str.upper()
+                om_df['UNITID'] = om_df['UNITID'].astype(int)
                 raw_om_map = {int(k): float(v) for k, v in zip(om_df['UNITID'], om_df['F1C19OM']) if pd.notna(v)}
             except Exception:
                 pass
@@ -390,7 +429,12 @@ def compile_portfolio_shape():
         
     df_metrics = pd.DataFrame(dfs)
     df_metrics['UNITID'] = df_metrics['UNITID'].astype(int)
-    df_merged = df_metrics.merge(hd_df, on='UNITID', how='inner')
+    
+    df_merged = df_metrics.merge(
+        hd_all[['UNITID', 'INSTNM', 'STABBR', 'is_mi_public', 'is_urban_peer', 'is_public_r1']], 
+        on='UNITID', 
+        how='inner'
+    )
     
     dest_path = os.path.join(APP_DIR, "spending_portfolio_shape.parquet")
     df_merged.to_parquet(dest_path, index=False)

@@ -74,28 +74,45 @@ st.title("🎓 Spending Portfolio Shape Analysis")
 # --- SIDEBAR FILTERS ---
 st.sidebar.header("Peer & Analysis Settings")
 
-# 1. Peer Frame Toggle
-selected_frame_key = st.sidebar.selectbox(
-    "Select Peer Frame",
-    options=list(PEER_FRAMES.keys())
+# 1. Cohort Selector
+selected_cohort = st.sidebar.selectbox(
+    "Select Cohort Group",
+    options=["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"],
+    index=1
 )
-active_frame = PEER_FRAMES[selected_frame_key]
-active_ids = active_frame["ids"]
-active_name = active_frame["name"]
 
-# Filter data to active frame
-df_frame = df_all[df_all['UNITID'].isin(active_ids)].copy()
+if selected_cohort == "Michigan Publics (MASU)":
+    df_cohort = df_all[df_all['is_mi_public'] == 1].copy()
+elif selected_cohort == "Urban Peer Publics":
+    df_cohort = df_all[df_all['is_urban_peer'] == 1].copy()
+else:
+    df_cohort = df_all[df_all['is_public_r1'] == 1].copy()
+
+# 2. Cohort Member Selector
+all_cohort_schools = sorted(
+    df_cohort[df_cohort['UNITID'] != WSU_UNITID]['INSTNM'].unique().tolist()
+)
+selected_cohort_members = st.sidebar.multiselect(
+    "Select Peer Universities",
+    options=all_cohort_schools,
+    default=all_cohort_schools,
+    help="De/select individual cohort members to include in the benchmark distribution."
+)
+
+wsu_name = "Wayne State University"
+if not df_cohort[df_cohort['UNITID'] == WSU_UNITID].empty:
+    wsu_name = df_cohort[df_cohort['UNITID'] == WSU_UNITID]['INSTNM'].iloc[0]
+
+# Filter data to WSU + active cohort members
+df_frame = df_cohort[df_cohort['INSTNM'].isin([wsu_name] + selected_cohort_members)].copy()
 
 # Add a subtitle immediately below title conforming to guidelines
-st.caption(f"#### Scope: {active_name} · Years: FY2020–FY2024 · Metrics: Functional expense as % of core expenses")
+st.caption(f"#### Scope: {selected_cohort} · Years: FY2020–FY2024 · Metrics: Functional expense as % of core expenses")
 
-# 2. Select Individual Peers for direct line comparison
-all_peers_in_frame = sorted(
-    df_frame[df_frame['UNITID'] != WSU_UNITID]['INSTNM'].unique().tolist()
-)
+# 3. Select Individual Peers for direct line comparison
 selected_peers_names = st.sidebar.multiselect(
     "Direct Comparison Peers",
-    options=all_peers_in_frame,
+    options=selected_cohort_members,
     help="Select specific peer institutions to draw their individual trend lines on the chart."
 )
 selected_peers_ids = df_frame[df_frame['INSTNM'].isin(selected_peers_names)]['UNITID'].unique().tolist()
@@ -112,8 +129,8 @@ st.sidebar.markdown("""
 """)
 
 # Check if data exists
-if df_frame.empty:
-    st.warning("No data found for the selected peer set. Please verify local parquet files in data/raw/ipeds/.")
+if df_frame.empty or len(selected_cohort_members) == 0:
+    st.warning("Please select at least one peer university in the sidebar filter to perform comparisons.")
 else:
     # Check for FASB schools in active set to show notification
     fasb_schools = df_frame[df_frame['REPORTING'] == 'FASB']['INSTNM'].unique().tolist()
