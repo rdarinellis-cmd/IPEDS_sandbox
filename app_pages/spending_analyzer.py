@@ -298,8 +298,18 @@ with tab_summary:
         # Grouped Bar Chart in Altair
         # Base chart for layering
         base = alt.Chart(df_tidy).encode(
-            x=alt.X('Spending Category:N', title=None, axis=alt.Axis(labels=False)),
+            x=alt.X('INSTNM:N', title=None, axis=alt.Axis(
+                labelAngle=-45, 
+                labelColor=alt.condition(
+                    "datum.value == 'Wayne State University'", 
+                    alt.value('#0C5449'), 
+                    alt.value('#111111')
+                ),
+                labelFontWeight='bold',
+                labelFontSize=11
+            )),
             y=alt.Y('Spend per FTE:Q', title="Spend per FTE ($)"),
+            xOffset='Spending Category:N',
             color=alt.Color(
                 'Spending Category:N', 
                 scale=alt.Scale(
@@ -324,17 +334,11 @@ with tab_summary:
             text=alt.Text('Spend per FTE:Q', format='$,.0f')
         )
         
-        # Layer first, then facet by column to resolve SchemaValidationError
+        # Layer them first, then draw as a grouped bar chart
         final_bar_chart = alt.layer(bars, text_labels).properties(
-            width=70
-        ).facet(
-            column=alt.Column(
-                'INSTNM:N', 
-                title="Institution", 
-                header=alt.Header(labelOrient='bottom', titleOrient='bottom', labelAngle=-45, labelPadding=10)
-            )
+            height=400
         )
-        st.altair_chart(final_bar_chart)
+        st.altair_chart(final_bar_chart, width='stretch')
         
         # Accessible Data Fallback expander
         with st.expander("♿ Accessible Data Table - Top 10 Spending Institutions"):
