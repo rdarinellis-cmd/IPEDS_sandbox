@@ -296,16 +296,25 @@ with tab_summary:
         )
         
         # Grouped Bar Chart in Altair
-        bar_chart = alt.Chart(df_tidy).mark_bar().encode(
+        # Base chart for layering
+        base = alt.Chart(df_tidy).encode(
             x=alt.X('Spending Category:N', title=None, axis=alt.Axis(labels=False)),
             y=alt.Y('Spend per FTE:Q', title="Spend per FTE ($)"),
-            color=alt.Color('Spending Category:N', scale=alt.Scale(domain=['Instruction per FTE', 'Academic Support per FTE', 'Student Services per FTE'], range=['#0C5449', '#FFCC33', '#111111']), legend=alt.Legend(title="Category")),
-            column=alt.Column('INSTNM:N', title="Institution", header=alt.Header(labelOrient='bottom', titleOrient='bottom', labelAngle=-45, labelPadding=10)),
+            color=alt.Color(
+                'Spending Category:N', 
+                scale=alt.Scale(
+                    domain=['Instruction per FTE', 'Academic Support per FTE', 'Student Services per FTE'], 
+                    range=['#0C5449', '#FFCC33', '#111111']
+                ), 
+                legend=alt.Legend(title="Category")
+            ),
             tooltip=['INSTNM', 'Spending Category', alt.Tooltip('Spend per FTE:Q', format='$,.2f')]
         )
         
+        bars = base.mark_bar()
+        
         # Redundant encoding: exact value labels on top of bars
-        text_labels = bar_chart.mark_text(
+        text_labels = base.mark_text(
             align='center',
             baseline='bottom',
             dy=-3,
@@ -315,7 +324,16 @@ with tab_summary:
             text=alt.Text('Spend per FTE:Q', format='$,.0f')
         )
         
-        final_bar_chart = (bar_chart + text_labels).properties(width=70)
+        # Layer first, then facet by column to resolve SchemaValidationError
+        final_bar_chart = alt.layer(bars, text_labels).properties(
+            width=70
+        ).facet(
+            column=alt.Column(
+                'INSTNM:N', 
+                title="Institution", 
+                header=alt.Header(labelOrient='bottom', titleOrient='bottom', labelAngle=-45, labelPadding=10)
+            )
+        )
         st.altair_chart(final_bar_chart)
         
         # Accessible Data Fallback expander
