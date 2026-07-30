@@ -22,4 +22,11 @@ To prevent runtime crashes and ensure zero-downtime remote deployments (such as 
 - **Aggregate all raw inputs locally** using `etl/compile_app_data.py` into lightweight `.parquet` databases inside `data/app/`.
 - **Load pre-compiled `.parquet` tables** directly in front-end pages.
 
+### 4. Unified Cohort Selection & Sidebar Filtering Layout
+Every dashboard page containing filters must organize its layout as follows:
+- **Sidebar Selector Order:** All interactive widgets (year, cohort group, cohort members) must be defined consecutively at the top of the sidebar.
+- **Attribution Note:** Place the "Definitions & Sources" markdown block at the very bottom of the sidebar below all widgets, preceded by a horizontal line divider (`---`).
+- **Main Page Title & Dynamic Subtitles:** Draw the main title, followed immediately by a dynamic caption showing the active cohort group, year range, and primary metrics being analyzed (e.g. `st.caption(f"#### Scope: {selected_cohort} | Years: ... | Metrics: ...")`).
+- **Selector Naming:** The cohort group selectbox must be named `"Select Cohort Group"` and have the options `["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"]`. The cohort member selector must be named `"Select Universities"` (or `"Select Peer Universities"`).
+
 *Note: These instructions are loaded as workspace rules and must be adhered to by all developer agents working on this project.*

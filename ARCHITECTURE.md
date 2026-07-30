@@ -133,3 +133,20 @@ Under Title II of the ADA, all public university web applications must meet WCAG
 4. **Target Sizing & Zoom:**
    * Interactive elements must maintain a minimum touch/click target size of **24x24 pixels**.
    * Layouts must remain fully functional when zoomed up to **200%** in browser settings without breaking grid alignments.
+
+## 🎛️ 9. Unified Cohort Selection & Sidebar Filtering Layout
+
+To ensure all existing and new/forthcoming app pages have a completely consistent sidebar and layout structure, the following guidelines are mandatory:
+
+### A. Sidebar Layout Order
+Every dashboard page containing filters must organize its sidebar sequentially as follows:
+1. **Sidebar Title/Header:** `st.sidebar.header("Filter Settings")`
+2. **Filters & Selectors (Consecutive):** Render all selectboxes, multiselects, sliders, or checkboxes consecutively at the top of the sidebar. Do NOT insert text descriptions, markdown documentation, or external links between selectors.
+3. **Cohort Selection Pattern:**
+   * **Cohort Selector selectbox:** Allow selecting the group scope (`"Select Cohort Group"`, options: `["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"]`).
+   * **Cohort Member multiselect:** Populate dynamically with the institutions in the selected cohort, defaulting to all members. Ensure it is named `"Select Universities"` (or `"Select Peer Universities"`).
+4. **Markdown Definitions & Sources:** Place the NCES data source attribution markdown block at the very bottom of the sidebar below all interactive widgets, preceded by a horizontal line divider (`---`).
+
+### B. Main Page Title & Captions
+1. **Title:** Display a clear main title at the top of the main area (e.g. `st.title("...")`).
+2. **Dynamic Context Caption:** Immediately below the title, render a dynamic caption containing the active cohort group, year range, and primary metrics being analyzed (e.g., `st.caption(f"#### Scope: {selected_cohort} | Years: ... | Metrics: ...")`).

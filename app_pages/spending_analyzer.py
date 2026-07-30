@@ -116,60 +116,6 @@ html, body, [class*="css"], .stMarkdown {
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Sidebar Filter Configuration
-st.sidebar.header("Filter Settings")
-
-# Academic Year Selection
-selected_year = st.sidebar.selectbox("Academic Year", available_years, index=0)
-year_config = YEARS_CONFIG[selected_year]
-
-# Cohort selector
-selected_cohort = st.sidebar.selectbox(
-    "Select Cohort Group",
-    options=["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"],
-    index=1
-)
-
-# Title Section
-st.title("🎓 Higher Education Spending Analyzer")
-st.caption(f"#### Scope: {selected_cohort} | Years: 2019–2024 | Metrics: Spending / FTE student")
-st.markdown("Compare and analyze spending on **Instruction**, **Academic Support**, and **Student Services** per FTE student using the full IPEDS Access Database records.")
-
-st.sidebar.markdown("""
----
-**Definitions & Sources:**
-- **Data Sources:** NCES [IPEDS Finance Survey](https://nces.ed.gov/ipeds/) (Tables `F1A`/`F2`/`F3`) and [IPEDS Fall Enrollment Survey](https://nces.ed.gov/ipeds/) (Table `EF12`).
-- **FTE Enrollment:** 12-month instructional activity Full-Time Equivalent (FTE) enrollment.
-- **Spending Metrics:** Calculated as raw expense divided by 12-month FTE.
-""")
-
-# Mappings from Data Dictionary
-CONTROL_MAP = {
-    1: "Public",
-    2: "Private Not-for-Profit",
-    3: "Private For-Profit"
-}
-
-CARNEGIE_MAP = {
-    15: "R1 (Very High Research)",
-    16: "R2 (High Research)"
-}
-
-LOCALE_MAP = {
-    11: "City: Large",
-    12: "City: Midsize",
-    13: "City: Small",
-    21: "Suburb: Large",
-    22: "Suburb: Midsize",
-    23: "Suburb: Small",
-    31: "Town: Fringe",
-    32: "Town: Distant",
-    33: "Town: Remote",
-    41: "Rural: Fringe",
-    42: "Rural: Distant",
-    43: "Rural: Remote"
-}
-
 @st.cache_data(ttl=600)
 def load_spending_data(year_label):
     try:
@@ -201,7 +147,21 @@ def load_spending_data(year_label):
         st.error(f"Failed to load spending data: {e}")
         return pd.DataFrame()
 
-# Load data
+# 3. Sidebar Filter Configuration
+st.sidebar.header("Filter Settings")
+
+# Academic Year Selection
+selected_year = st.sidebar.selectbox("Academic Year", available_years, index=0)
+year_config = YEARS_CONFIG[selected_year]
+
+# Cohort selector
+selected_cohort = st.sidebar.selectbox(
+    "Select Cohort Group",
+    options=["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"],
+    index=1
+)
+
+# Load data early to populate selectors consecutively
 with st.spinner(f"Fetching local records for {selected_year}..."):
     df_all = load_spending_data(selected_year)
 
@@ -221,7 +181,22 @@ if not df_all.empty:
     )
     df_raw = df_cohort[df_cohort['INSTNM'].isin(selected_schools)].copy()
 else:
+    selected_schools = []
     df_raw = pd.DataFrame()
+
+# Definitions and sources markdown at the very bottom of the sidebar
+st.sidebar.markdown("""
+---
+**Definitions & Sources:**
+- **Data Sources:** NCES [IPEDS Finance Survey](https://nces.ed.gov/ipeds/) (Tables `F1A`/`F2`/`F3`) and [IPEDS Fall Enrollment Survey](https://nces.ed.gov/ipeds/) (Table `EF12`).
+- **FTE Enrollment:** 12-month instructional activity Full-Time Equivalent (FTE) enrollment.
+- **Spending Metrics:** Calculated as raw expense divided by 12-month FTE.
+""")
+
+# Title Section on Main Page
+st.title("🎓 Higher Education Spending Analyzer")
+st.caption(f"#### Scope: {selected_cohort} | Years: 2019–2024 | Metrics: Spending / FTE student")
+st.markdown("Compare and analyze spending on **Instruction**, **Academic Support**, and **Student Services** per FTE student using the full IPEDS Access Database records.")
 
 
 # Tabs Navigation
@@ -230,6 +205,33 @@ tab_summary, tab_trends, tab_dictionary = st.tabs([
     "📈 Trend Analysis", 
     "📖 Data Dictionary"
 ])
+
+# Mappings from Data Dictionary
+CONTROL_MAP = {
+    1: "Public",
+    2: "Private Not-for-Profit",
+    3: "Private For-Profit"
+}
+
+CARNEGIE_MAP = {
+    15: "R1 (Very High Research)",
+    16: "R2 (High Research)"
+}
+
+LOCALE_MAP = {
+    11: "City: Large",
+    12: "City: Midsize",
+    13: "City: Small",
+    21: "Suburb: Large",
+    22: "Suburb: Midsize",
+    23: "Suburb: Small",
+    31: "Town: Fringe",
+    32: "Town: Distant",
+    33: "Town: Remote",
+    41: "Rural: Fringe",
+    42: "Rural: Distant",
+    43: "Rural: Remote"
+}
 
 # Process raw dataset
 if not df_raw.empty:
