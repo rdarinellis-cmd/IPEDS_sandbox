@@ -116,11 +116,6 @@ html, body, [class*="css"], .stMarkdown {
 </style>
 """, unsafe_allow_html=True)
 
-# Title Section
-st.title("🎓 Higher Education Spending Analyzer")
-st.caption(f"#### Scope: {selected_cohort} | Years: 2019–2024 | Metrics: Spending / FTE student")
-st.markdown("Compare and analyze spending on **Instruction**, **Academic Support**, and **Student Services** per FTE student using the full IPEDS Access Database records.")
-
 # 3. Sidebar Filter Configuration
 st.sidebar.header("Filter Settings")
 
@@ -134,6 +129,11 @@ selected_cohort = st.sidebar.selectbox(
     options=["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"],
     index=1
 )
+
+# Title Section
+st.title("🎓 Higher Education Spending Analyzer")
+st.caption(f"#### Scope: {selected_cohort} | Years: 2019–2024 | Metrics: Spending / FTE student")
+st.markdown("Compare and analyze spending on **Instruction**, **Academic Support**, and **Student Services** per FTE student using the full IPEDS Access Database records.")
 
 st.sidebar.markdown("""
 ---
