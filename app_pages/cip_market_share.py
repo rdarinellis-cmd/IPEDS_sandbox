@@ -9,12 +9,12 @@ import duckdb
 @st.cache_data(ttl=3600)
 def load_completions_data():
     try:
-        file_path = 'data/app/completions_michigan.parquet'
+        file_path = 'data/app/completions_benchmark.parquet'
         if not os.path.exists(file_path):
             return pd.DataFrame()
         query = """
-            SELECT year, institution, cip_code, award_level, total_degrees
-            FROM 'data/app/completions_michigan.parquet'
+            SELECT year, institution, cip_code, award_level, total_degrees, is_mi_public, is_urban_peer, is_public_r1
+            FROM 'data/app/completions_benchmark.parquet'
         """
         return duckdb.query(query).df()
     except Exception as e:
@@ -63,21 +63,33 @@ def load_demand_itemized():
 
 
 
-st.title("Michigan Public Universities: CIP Market Share & CAGR")
-st.caption("#### Scope: Michigan Public Universities | Years: 2019 to 2024 | Metrics: Degrees Conferred, Market Share, CAGR")
-
 with st.spinner("Loading local data..."):
-    df = load_completions_data()
+    df_all = load_completions_data()
     cip_dict = load_cip_dictionary()
     demand_summary = load_demand_summary()
     demand_itemized = load_demand_itemized()
 
 # Data cleaning
-df['cip_code'] = df['cip_code'].astype(str)
-df['total_degrees'] = pd.to_numeric(df['total_degrees'], errors='coerce').fillna(0)
+df_all['cip_code'] = df_all['cip_code'].astype(str)
+df_all['total_degrees'] = pd.to_numeric(df_all['total_degrees'], errors='coerce').fillna(0)
 
 # Sidebar filters
 st.sidebar.header("Filters")
+
+selected_cohort = st.sidebar.selectbox(
+    "Select Cohort Group",
+    options=["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"]
+)
+
+if selected_cohort == "Michigan Publics (MASU)":
+    df = df_all[df_all['is_mi_public'] == 1].copy()
+elif selected_cohort == "Urban Peer Publics":
+    df = df_all[df_all['is_urban_peer'] == 1].copy()
+else:
+    df = df_all[df_all['is_public_r1'] == 1].copy()
+
+st.title("CIP Market Share & CAGR Analysis")
+st.caption(f"#### Scope: {selected_cohort} | Years: 2019 to 2024 | Metrics: Degrees Conferred, Market Share, CAGR")
 
 all_schools = sorted(df['institution'].unique().tolist())
 selected_schools = st.sidebar.multiselect(

@@ -16,7 +16,7 @@ def load_completions_scorecard_merged():
     Executes a high-performance DuckDB SQL join between IPEDS Completions 
     and College Scorecard Field of Study Parquet datasets.
     """
-    comp_file = 'data/app/completions_michigan.parquet'
+    comp_file = 'data/app/completions_benchmark.parquet'
     scorecard_file = 'data/raw/scorecard/most_recent_cohorts_field_of_study.parquet'
     
     if not os.path.exists(comp_file) or not os.path.exists(scorecard_file):

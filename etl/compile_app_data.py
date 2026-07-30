@@ -89,8 +89,8 @@ def read_parquet_upper(file_path, cols):
 
 
 def compile_completions():
-    """Extract completions and directories for Michigan public universities only."""
-    print("📦 Compiling Michigan Completions datasets...")
+    """Extract completions and directories for Michigan public universities, Urban Peers, and Public R1s."""
+    print("📦 Compiling completions datasets...")
     
     # 1. Directory HD2024 filter
     hd2024_path = os.path.join(RAW_DIR, "hd2024.parquet")
@@ -98,13 +98,40 @@ def compile_completions():
         print(f"⚠️ Warning: Missing {hd2024_path}. Skipping Completions compilation.")
         return
         
-    hd = read_parquet_upper(hd2024_path, ['UNITID', 'INSTNM'])
-    hd_mi = hd[hd['INSTNM'].isin(MICHIGAN_UNIVERSITIES)].copy()
+    schema = pq.read_schema(hd2024_path)
+    carnegie_col = 'C21BASIC'
+    for col_candidate in ['C21BASIC', 'C18BASIC', 'C15BASIC', 'CCBASIC', 'CARNEGIE']:
+        if any(name.upper() == col_candidate for name in schema.names):
+            carnegie_col = col_candidate
+            break
+            
+    hd = read_parquet_upper(hd2024_path, ['UNITID', 'INSTNM', 'CONTROL', carnegie_col])
+    hd = hd.rename(columns={carnegie_col: 'C21BASIC'})
     
-    hd_mi.to_parquet(os.path.join(APP_DIR, "hd_michigan.parquet"), index=False)
-    print(f"   Saved: hd_michigan.parquet ({len(hd_mi)} institutions)")
+    # Define cohorts
+    # a. Michigan publics:
+    mi_names = MICHIGAN_UNIVERSITIES
+    hd_mi = hd[hd['INSTNM'].isin(mi_names)].copy()
     
-    mi_unitids = hd_mi['UNITID'].tolist()
+    # b. Urban peers:
+    urban_peer_ids = [172644, 133951, 225511, 201885, 139940, 216339, 234030, 157289, 187985, 145600, 100663]
+    hd_urban = hd[hd['UNITID'].isin(urban_peer_ids)].copy()
+    
+    # c. Public R1s:
+    hd['CONTROL'] = pd.to_numeric(hd['CONTROL'], errors='coerce')
+    hd['C21BASIC'] = pd.to_numeric(hd['C21BASIC'], errors='coerce')
+    hd_r1 = hd[(hd['CONTROL'] == 1) & (hd['C21BASIC'] == 15)].copy()
+    
+    # Merge and build flags
+    hd_all = pd.concat([hd_mi, hd_urban, hd_r1]).drop_duplicates(subset=['UNITID']).copy()
+    hd_all['is_mi_public'] = hd_all['INSTNM'].isin(mi_names).astype(int)
+    hd_all['is_urban_peer'] = hd_all['UNITID'].isin(urban_peer_ids).astype(int)
+    hd_all['is_public_r1'] = ((hd_all['CONTROL'] == 1) & (hd_all['C21BASIC'] == 15)).astype(int)
+    
+    hd_all.to_parquet(os.path.join(APP_DIR, "hd_completions.parquet"), index=False)
+    print(f"   Saved: hd_completions.parquet ({len(hd_all)} institutions)")
+    
+    selected_unitids = hd_all['UNITID'].tolist()
     
     # 2. Completions merge (2019-2024)
     comp_dfs = []
@@ -116,16 +143,12 @@ def compile_completions():
             
         c_df = read_parquet_upper(c_path, ['UNITID', 'CIPCODE', 'MAJORNUM', 'AWLEVEL', 'CTOTALT'])
         
-        # Filter: WSU and peers, first major, 6-digit CIPs
-        c_df = c_df[c_df['UNITID'].isin(mi_unitids)]
+        # Filter: first major, selected IDs
+        c_df = c_df[c_df['UNITID'].isin(selected_unitids)]
         c_df = c_df[c_df['MAJORNUM'] == 1]
         
-        # Normalize CIP codes to standard format
         c_df['cip_code'] = c_df['CIPCODE'].map(normalize_cip)
-        
-        # Filter for 6-digit CIPs (length == 7, e.g. "XX.XXXX")
         c_df = c_df[c_df['cip_code'].astype(str).str.len() == 7]
-        # Filter out 2-digit and 4-digit summary rollup rows (which end in '00')
         c_df = c_df[~c_df['cip_code'].astype(str).str.endswith('00')]
         
         c_df['year'] = year
@@ -134,20 +157,22 @@ def compile_completions():
             'CTOTALT': 'total_degrees'
         })
         
-        # Convert types to avoid mismatch
         c_df['total_degrees'] = pd.to_numeric(c_df['total_degrees'], errors='coerce').fillna(0).astype(int)
-        
         comp_dfs.append(c_df[['year', 'UNITID', 'cip_code', 'award_level', 'total_degrees']])
         
     if comp_dfs:
         all_comp = pd.concat(comp_dfs, ignore_index=True)
-        # Inner join with names to keep it clean and validated
-        all_comp = all_comp.merge(hd_mi, on='UNITID', how='inner')
+        # Inner join with directory and add flags
+        all_comp = all_comp.merge(
+            hd_all[['UNITID', 'INSTNM', 'is_mi_public', 'is_urban_peer', 'is_public_r1']], 
+            on='UNITID', 
+            how='inner'
+        )
         all_comp = all_comp.rename(columns={'INSTNM': 'institution', 'UNITID': 'unitid'})
         
-        comp_dest = os.path.join(APP_DIR, "completions_michigan.parquet")
+        comp_dest = os.path.join(APP_DIR, "completions_benchmark.parquet")
         all_comp.to_parquet(comp_dest, index=False)
-        print(f"   Saved: completions_michigan.parquet ({len(all_comp)} rows)")
+        print(f"   Saved: completions_benchmark.parquet ({len(all_comp)} rows)")
     else:
         print("   ❌ No completions datasets found to merge.")
 
