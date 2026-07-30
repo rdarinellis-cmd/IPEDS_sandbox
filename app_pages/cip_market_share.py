@@ -185,9 +185,19 @@ else:
         if y not in df_pivot.columns:
             df_pivot[y] = 0
 
-    val_2019 = df_pivot['2019'] + 1
-    val_2024 = df_pivot['2024'] + 1
-    cagr = (val_2024 / val_2019) ** (1/5) - 1
+    val_2019 = df_pivot['2019']
+    val_2024 = df_pivot['2024']
+    
+    # Calculate true CAGR mathematically:
+    # 1. If starting value is > 0 and ending value > 0: true CAGR
+    # 2. If starting value is > 0 and ending value is 0: -100% (-1.0)
+    # 3. If starting value is 0 and ending value is 0: 0.0
+    # 4. If starting value is 0 and ending value is > 0: undefined (NaN)
+    cagr = np.where(
+        val_2019 > 0,
+        np.where(val_2024 > 0, (val_2024 / val_2019) ** 0.2 - 1.0, -1.0),
+        np.where(val_2024 == 0, 0.0, np.nan)
+    )
     df_pivot['cagr'] = cagr
 
     total_2024 = df_pivot['2024'].sum()
@@ -214,12 +224,17 @@ else:
         
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Degrees (2024) [Selected Schools]", int(total_2024))
-        col2.metric("Median Market Share", f"{median_share:.1%}")
-        col3.metric("Median CAGR", f"{median_cagr:.1%}")
+        
+        median_share_str = f"{median_share:.1%}" if pd.notna(median_share) else "N/A"
+        median_cagr_str = f"{median_cagr:.1%}" if pd.notna(median_cagr) else "N/A"
+        
+        col2.metric("Median Market Share", median_share_str)
+        col3.metric("Median CAGR", median_cagr_str)
 
+        # Scale axes dynamically to fit data points exactly (zero=False)
         scatter = alt.Chart(plot_data).mark_point(size=150, opacity=0.8, filled=True).encode(
-            x=alt.X('market_share:Q', title="Market Share (2024)", axis=alt.Axis(format='%')),
-            y=alt.Y('cagr:Q', title="5-Year CAGR (2019-2024)", axis=alt.Axis(format='%')),
+            x=alt.X('market_share:Q', title="Market Share (2024)", axis=alt.Axis(format='%'), scale=alt.Scale(zero=False)),
+            y=alt.Y('cagr:Q', title="5-Year CAGR (2019-2024)", axis=alt.Axis(format='%'), scale=alt.Scale(zero=False)),
             color=alt.Color('institution:N', legend=None),
             shape=alt.Shape('institution:N', legend=None),
             tooltip=[
@@ -230,10 +245,15 @@ else:
             ]
         )
 
-        vline = alt.Chart(pd.DataFrame({'x': [median_share]})).mark_rule(color='red', strokeDash=[4, 4]).encode(x='x:Q')
-        hline = alt.Chart(pd.DataFrame({'y': [median_cagr]})).mark_rule(color='red', strokeDash=[4, 4]).encode(y='y:Q')
+        chart_elements = [scatter]
+        if pd.notna(median_share):
+            vline = alt.Chart(pd.DataFrame({'x': [median_share]})).mark_rule(color='red', strokeDash=[4, 4]).encode(x='x:Q')
+            chart_elements.append(vline)
+        if pd.notna(median_cagr):
+            hline = alt.Chart(pd.DataFrame({'y': [median_cagr]})).mark_rule(color='red', strokeDash=[4, 4]).encode(y='y:Q')
+            chart_elements.append(hline)
 
-        chart = (scatter + vline + hline).properties(
+        chart = alt.layer(*chart_elements).properties(
             height=600,
             title="Market Share vs CAGR (Red lines represent medians of selected schools)"
         ).interactive()
