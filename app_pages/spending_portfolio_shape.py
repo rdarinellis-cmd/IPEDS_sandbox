@@ -59,98 +59,10 @@ YEAR_MAPS = {
 # --- CACHED DATA LOADER ---
 @st.cache_data(ttl=3600)
 def load_portfolio_data():
-    ids_sql = ", ".join(map(str, ALL_PEER_IDS))
-    dfs = []
-    
-    # 1. Load names and characteristics from hd2024
-    hd_path = "data/raw/ipeds/hd2024.parquet"
-    if os.path.exists(hd_path):
-        hd_df = duckdb.query(f"SELECT UNITID, INSTNM, STABBR FROM '{hd_path}' WHERE UNITID IN ({ids_sql})").df()
-        hd_df.columns = hd_df.columns.str.upper()
-    else:
-        hd_df = pd.DataFrame({
-            'UNITID': ALL_PEER_IDS, 
-            'INSTNM': [f"Institution {x}" for x in ALL_PEER_IDS], 
-            'STABBR': 'US'
-        })
-    
-    # Ensure keys match types
-    hd_df['UNITID'] = hd_df['UNITID'].astype(int)
-        
-    for year, files in YEAR_MAPS.items():
-        drvf_path = f"data/raw/ipeds/{files['drvf']}"
-        raw_gasb_path = f"data/raw/ipeds/{files['raw_gasb']}"
-        
-        if not os.path.exists(drvf_path):
-            continue
-            
-        # Load derived table metrics
-        drvf_df = duckdb.query(f"SELECT * FROM '{drvf_path}' WHERE UNITID IN ({ids_sql})").df()
-        drvf_df.columns = drvf_df.columns.str.upper()
-        
-        # Load raw GASB for F1C19OM (Operations & Maintenance total)
-        raw_om_map = {}
-        if os.path.exists(raw_gasb_path):
-            try:
-                om_df = duckdb.query(f"SELECT UNITID, F1C19OM FROM '{raw_gasb_path}' WHERE UNITID IN ({ids_sql})").df()
-                om_df.columns = om_df.columns.str.upper()
-                raw_om_map = {int(k): float(v) for k, v in zip(om_df['UNITID'], om_df['F1C19OM']) if pd.notna(v)}
-            except Exception:
-                pass
-                
-        for _, row in drvf_df.iterrows():
-            unitid = int(row['UNITID'])
-            is_gasb = pd.notna(row.get('F1COREXP')) and row.get('F1COREXP') > 0
-            
-            if is_gasb:
-                core_exp = float(row.get('F1COREXP', 0))
-                instruction = float(row.get('F1INSTPC', 0))
-                research = float(row.get('F1RSRCPC', 0))
-                public_service = float(row.get('F1PBSVPC', 0))
-                academic_support = float(row.get('F1ACSPPC', 0))
-                student_services = float(row.get('F1STSVPC', 0))
-                institutional_support = float(row.get('F1INSUPC', 0))
-                other_core = float(row.get('F1OTEXPC', 0))
-                
-                raw_om = raw_om_map.get(unitid, 0.0)
-                om_share = (raw_om / core_exp * 100.0) if core_exp > 0 else 0.0
-                reporting = 'GASB'
-            else:
-                core_exp = float(row.get('F2COREXP', 0))
-                instruction = float(row.get('F2INSTPC', 0))
-                research = float(row.get('F2RSRCPC', 0))
-                public_service = float(row.get('F2PBSVPC', 0))
-                academic_support = float(row.get('F2ACSPPC', 0))
-                student_services = float(row.get('F2STSVPC', 0))
-                institutional_support = float(row.get('F2INSUPC', 0))
-                other_core = float(row.get('F2OTEXPC', 0))
-                
-                om_share = None # FASB doesn't report separate O&M
-                reporting = 'FASB'
-                
-            dfs.append({
-                'UNITID': unitid,
-                'YEAR': year,
-                'REPORTING': reporting,
-                'CORE_EXPENSES': core_exp,
-                'Instruction': instruction,
-                'Research': research,
-                'Public Service': public_service,
-                'Academic Support': academic_support,
-                'Student Services': student_services,
-                'Institutional Support': institutional_support,
-                'Other Core Expenses': other_core,
-                'O&M Share (Contextual)': om_share
-            })
-            
-    if not dfs:
-        return pd.DataFrame()
-        
-    df_metrics = pd.DataFrame(dfs)
-    df_metrics['UNITID'] = df_metrics['UNITID'].astype(int)
-    
-    df_merged = df_metrics.merge(hd_df, on='UNITID', how='inner')
-    return df_merged
+    file_path = "data/app/spending_portfolio_shape.parquet"
+    if os.path.exists(file_path):
+        return pd.read_parquet(file_path)
+    return pd.DataFrame()
 
 # --- LOAD DATA ---
 with st.spinner("Loading portfolio finance data..."):

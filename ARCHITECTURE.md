@@ -14,6 +14,7 @@ This dashboard is designed to run completely serverlessly on a local-first, file
 - **Compute Profile:** Fast, local multi-threaded file execution using Pandas and PyArrow.
 - **Hosting Strategy:** Deployed directly to Streamlit Community Cloud (GitHub Synced).
 - **Financial Cost:** Guaranteed $0.00/month footprint using free hosting tier.
+- **ETL Boundary (Data Source Constraint):** Never query raw datasets (`data/raw/`) directly from dashboard pages, as these files are git-ignored and missing in production. All raw data must be aggregated locally using `etl/compile_app_data.py` into lightweight `.parquet` databases inside `data/app/` and read from there in the page views.
 
 ## 📁 3. Workspace Layout
 The repository is structured as a lightweight Python project:

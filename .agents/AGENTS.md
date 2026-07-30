@@ -16,4 +16,10 @@ Every dashboard must feature a descriptive subtitle directly below the main titl
 - **Timeframe / Years:** The range of years represented in the data (e.g., "2019 to 2024").
 - **Core Metrics:** A brief mention of the primary variables (e.g., "Completions, CAGR, Market Share").
 
+### 3. ETL Data Access Boundary (Data Integrity Rule)
+To prevent runtime crashes and ensure zero-downtime remote deployments (such as Streamlit Community Cloud):
+- **Never load or query files inside the `data/raw/` folder directly from page views.** This directory is git-ignored and missing in production.
+- **Aggregate all raw inputs locally** using `etl/compile_app_data.py` into lightweight `.parquet` databases inside `data/app/`.
+- **Load pre-compiled `.parquet` tables** directly in front-end pages.
+
 *Note: These instructions are loaded as workspace rules and must be adhered to by all developer agents working on this project.*

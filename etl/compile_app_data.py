@@ -261,12 +261,124 @@ def compile_spending():
         print("   ❌ No spending datasets found to compile.")
 
 
+def compile_portfolio_shape():
+    """Compile the portfolio shape metrics for Michigan publics and Urban Peers for 2020-2024."""
+    print("📦 Compiling Portfolio Shape (Michigan Publics + Urban Peers)...")
+    
+    # 25 unique IDs for peer groups
+    ALL_PEER_IDS = [
+        168528, 168740, 169080, 169248, 169798, 170976, 171128, 171137, 171474, 172051, 
+        172420, 172644, 246532, 451433, 495767, 133951, 225511, 201885, 139940, 216339, 
+        234030, 157289, 187985, 145600, 100663
+    ]
+    ids_sql = ", ".join(map(str, ALL_PEER_IDS))
+    
+    # Load names and characteristics from hd2024
+    import duckdb
+    hd_path = os.path.join(RAW_DIR, "hd2024.parquet")
+    if os.path.exists(hd_path):
+        hd_df = duckdb.query(f"SELECT UNITID, INSTNM, STABBR FROM '{hd_path}' WHERE UNITID IN ({ids_sql})").df()
+        hd_df.columns = hd_df.columns.str.upper()
+    else:
+        print("   ❌ Error: hd2024.parquet not found in raw. Cannot compile portfolio shape.")
+        return
+        
+    hd_df['UNITID'] = hd_df['UNITID'].astype(int)
+    
+    YEAR_MAPS = {
+        2020: {"drvf": "drvf2020.parquet", "raw_gasb": "f1920_f1a.parquet"},
+        2021: {"drvf": "drvf2021.parquet", "raw_gasb": "f2021_f1a.parquet"},
+        2022: {"drvf": "drvf2022.parquet", "raw_gasb": "f2122_f1a.parquet"},
+        2023: {"drvf": "drvf2023.parquet", "raw_gasb": "f2223_f1a.parquet"},
+        2024: {"drvf": "drvf2024.parquet", "raw_gasb": "f2324_f1a.parquet"}
+    }
+    
+    dfs = []
+    for year, files in YEAR_MAPS.items():
+        drvf_path = os.path.join(RAW_DIR, files['drvf'])
+        raw_gasb_path = os.path.join(RAW_DIR, files['raw_gasb'])
+        
+        if not os.path.exists(drvf_path):
+            print(f"   (Skipping missing year {year} derived table)")
+            continue
+            
+        drvf_df = duckdb.query(f"SELECT * FROM '{drvf_path}' WHERE UNITID IN ({ids_sql})").df()
+        drvf_df.columns = drvf_df.columns.str.upper()
+        
+        raw_om_map = {}
+        if os.path.exists(raw_gasb_path):
+            try:
+                om_df = duckdb.query(f"SELECT UNITID, F1C19OM FROM '{raw_gasb_path}' WHERE UNITID IN ({ids_sql})").df()
+                om_df.columns = om_df.columns.str.upper()
+                raw_om_map = {int(k): float(v) for k, v in zip(om_df['UNITID'], om_df['F1C19OM']) if pd.notna(v)}
+            except Exception:
+                pass
+                
+        for _, row in drvf_df.iterrows():
+            unitid = int(row['UNITID'])
+            is_gasb = pd.notna(row.get('F1COREXP')) and row.get('F1COREXP') > 0
+            
+            if is_gasb:
+                core_exp = float(row.get('F1COREXP', 0))
+                instruction = float(row.get('F1INSTPC', 0))
+                research = float(row.get('F1RSRCPC', 0))
+                public_service = float(row.get('F1PBSVPC', 0))
+                academic_support = float(row.get('F1ACSPPC', 0))
+                student_services = float(row.get('F1STSVPC', 0))
+                institutional_support = float(row.get('F1INSUPC', 0))
+                other_core = float(row.get('F1OTEXPC', 0))
+                
+                raw_om = raw_om_map.get(unitid, 0.0)
+                om_share = (raw_om / core_exp * 100.0) if core_exp > 0 else 0.0
+                reporting = 'GASB'
+            else:
+                core_exp = float(row.get('F2COREXP', 0))
+                instruction = float(row.get('F2INSTPC', 0))
+                research = float(row.get('F2RSRCPC', 0))
+                public_service = float(row.get('F2PBSVPC', 0))
+                academic_support = float(row.get('F2ACSPPC', 0))
+                student_services = float(row.get('F2STSVPC', 0))
+                institutional_support = float(row.get('F2INSUPC', 0))
+                other_core = float(row.get('F2OTEXPC', 0))
+                
+                om_share = None
+                reporting = 'FASB'
+                
+            dfs.append({
+                'UNITID': unitid,
+                'YEAR': year,
+                'REPORTING': reporting,
+                'CORE_EXPENSES': core_exp,
+                'Instruction': instruction,
+                'Research': research,
+                'Public Service': public_service,
+                'Academic Support': academic_support,
+                'Student Services': student_services,
+                'Institutional Support': institutional_support,
+                'Other Core Expenses': other_core,
+                'O&M Share (Contextual)': om_share
+            })
+            
+    if not dfs:
+        print("   ❌ No data compiled for portfolio shape.")
+        return
+        
+    df_metrics = pd.DataFrame(dfs)
+    df_metrics['UNITID'] = df_metrics['UNITID'].astype(int)
+    df_merged = df_metrics.merge(hd_df, on='UNITID', how='inner')
+    
+    dest_path = os.path.join(APP_DIR, "spending_portfolio_shape.parquet")
+    df_merged.to_parquet(dest_path, index=False)
+    print(f"   Saved: spending_portfolio_shape.parquet ({len(df_merged)} rows)")
+
+
 def main():
     os.makedirs(APP_DIR, exist_ok=True)
     print("Starting App Data compilation pipeline...")
     compile_completions()
     compile_dictionaries()
     compile_spending()
+    compile_portfolio_shape()
     print("🏁 App Data compilation complete!")
 
 
