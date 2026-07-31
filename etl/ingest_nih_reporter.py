@@ -92,14 +92,20 @@ def query(org_name, activity_codes, fiscal_years):
             # if we are running in the sandbox environment.
             print("Connection error! Generating mock data for sandbox environment...")
             for _ in range(random.randint(1, 15)):
+                # 10% chance of a no-cost extension mock
+                is_nce = random.random() < 0.1
+                award = 0 if is_nce else random.randint(100000, 2000000)
                 all_results.append({
                     "core_project_num": f"MOCK-{random.randint(1000, 9999)}",
                     "project_title": "Mock Research Initiative for Advanced Study",
                     "contact_pi_name": "DOE, JOHN",
-                    "award_amount": random.randint(100000, 2000000),
+                    "award_amount": award,
                     "agency_ic_admin": {"abbreviation": "NCI"},
                     "project_start_date": "2020-01-01T00:00:00",
-                    "project_end_date": "2025-12-31T00:00:00",
+                    "project_end_date": "2026-12-31T00:00:00" if is_nce else "2025-12-31T00:00:00",
+                    "budget_start": "2024-07-01T00:00:00",
+                    "budget_end": "2025-06-30T00:00:00" if not is_nce else "2026-06-30T00:00:00",
+                    "fiscal_year": 2024,
                     "project_detail_url": "https://reporter.nih.gov",
                     "organization": {"org_name": org_name}
                 })
@@ -162,6 +168,10 @@ def main():
                     "project_title": r.get("project_title"),
                     "contact_pi_name": r.get("contact_pi_name"),
                     "award_amount": r.get("award_amount", 0),
+                    "is_no_cost_extension": True if (r.get("award_amount") is None or r.get("award_amount") == 0) else False,
+                    "fiscal_year": r.get("fiscal_year"),
+                    "budget_start": r.get("budget_start"),
+                    "budget_end": r.get("budget_end"),
                     "agency_ic": r.get("agency_ic_admin", {}).get("abbreviation") if isinstance(r.get("agency_ic_admin"), dict) else None,
                     "project_start_date": r.get("project_start_date"),
                     "project_end_date": r.get("project_end_date"),

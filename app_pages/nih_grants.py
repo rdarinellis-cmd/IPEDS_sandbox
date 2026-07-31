@@ -59,6 +59,69 @@ st.sidebar.markdown("""
 """)
 
 # ==========================================
+# SELECTION SYNC LOGIC
+# ==========================================
+
+# Prepare display_df early for selection mapping
+display_df = df_filtered[[
+    'institution', 
+    'training_grant_count', 'training_grant_funding',
+    'center_grant_count', 'center_grant_funding'
+]].copy()
+
+display_df = display_df.rename(columns={
+    'institution': 'Institution',
+    'training_grant_count': 'Training Count',
+    'training_grant_funding': 'Training Funding',
+    'center_grant_count': 'Center Count',
+    'center_grant_funding': 'Center Funding'
+})
+
+# Initialization
+if 'prev_chart_sel' not in st.session_state:
+    st.session_state.prev_chart_sel = set()
+if 'prev_table_rows' not in st.session_state:
+    st.session_state.prev_table_rows = []
+if 'selected_institutions' not in st.session_state:
+    st.session_state.selected_institutions = set()
+    
+# Read current events from session state
+chart_sel = set()
+if "funding_chart" in st.session_state:
+    sel = st.session_state.funding_chart.get("selection", {}).get("Select", [])
+    for item in sel:
+        if "institution" in item:
+            chart_sel.add(item["institution"])
+
+if "count_chart" in st.session_state:
+    sel = st.session_state.count_chart.get("selection", {}).get("Select", [])
+    for item in sel:
+        if "institution" in item:
+            chart_sel.add(item["institution"])
+
+table_rows = []
+if "summary_table" in st.session_state:
+    table_rows = st.session_state.summary_table.get("selection", {}).get("rows", [])
+    
+# Determine what changed
+if chart_sel != st.session_state.prev_chart_sel:
+    # Chart was clicked!
+    st.session_state.selected_institutions = chart_sel
+elif table_rows != st.session_state.prev_table_rows:
+    # Table was clicked!
+    st.session_state.selected_institutions = {display_df.iloc[i]['Institution'] for i in table_rows}
+
+# Compute synchronized table rows
+new_table_rows = [i for i, inst in enumerate(display_df['Institution']) if inst in st.session_state.selected_institutions]
+
+# Update previous states for NEXT run
+st.session_state.prev_chart_sel = st.session_state.selected_institutions.copy()
+st.session_state.prev_table_rows = new_table_rows
+
+# FORCE table selection via override
+st.session_state.summary_table = {"selection": {"rows": new_table_rows, "columns": []}}
+
+# ==========================================
 # MAIN PAGE (Rule 2: Contextual Subtitles)
 # ==========================================
 
@@ -104,6 +167,13 @@ with col1:
     
     click_selection = alt.selection_point(name='Select', fields=['institution'])
     
+    # Python override for bi-directional opacity
+    python_selection = alt.FieldOneOfPredicate(field='institution', oneOf=list(st.session_state.selected_institutions))
+    if st.session_state.selected_institutions:
+        opacity_cond = alt.condition(click_selection | python_selection, alt.value(1.0), alt.value(0.3))
+    else:
+        opacity_cond = alt.condition(click_selection, alt.value(1.0), alt.value(0.3))
+    
     funding_chart = alt.Chart(df_funding).mark_bar().encode(
         x=alt.X('Funding:Q', title="Total Funding ($)", axis=alt.Axis(format='$,.0f')),
         y=alt.Y('institution:N', title=None, sort='-x'),
@@ -115,7 +185,7 @@ with col1:
             ),
             legend=alt.Legend(title="Institution & Grant Type")
         ),
-        opacity=alt.condition(click_selection, alt.value(1.0), alt.value(0.3)),
+        opacity=opacity_cond,
         tooltip=[
             alt.Tooltip('institution', title="Institution"),
             alt.Tooltip('Grant Type', title="Type"),
@@ -123,7 +193,7 @@ with col1:
         ]
     ).properties(height=400).add_params(click_selection)
     
-    funding_event = st.altair_chart(funding_chart, use_container_width=True, on_select="rerun")
+    funding_event = st.altair_chart(funding_chart, use_container_width=True, on_select="rerun", key="funding_chart")
 
 with col2:
     st.subheader("Grant Count Comparison")
@@ -152,7 +222,7 @@ with col2:
             ),
             legend=alt.Legend(title="Institution & Grant Type")
         ),
-        opacity=alt.condition(click_selection, alt.value(1.0), alt.value(0.3)),
+        opacity=opacity_cond,
         tooltip=[
             alt.Tooltip('institution', title="Institution"),
             alt.Tooltip('Grant Type', title="Type"),
@@ -160,32 +230,19 @@ with col2:
         ]
     ).properties(height=400).add_params(click_selection)
     
-    count_event = st.altair_chart(count_chart, use_container_width=True, on_select="rerun")
+    count_event = st.altair_chart(count_chart, use_container_width=True, on_select="rerun", key="count_chart")
 
 st.divider()
 
 st.subheader("Summary by Institution")
 st.markdown("Click on a row below, or a bar in the charts above, to drill down into the itemized grants.")
 
-display_df = df_filtered[[
-    'institution', 
-    'training_grant_count', 'training_grant_funding',
-    'center_grant_count', 'center_grant_funding'
-]].copy()
-
-display_df = display_df.rename(columns={
-    'institution': 'Institution',
-    'training_grant_count': 'Training Count',
-    'training_grant_funding': 'Training Funding',
-    'center_grant_count': 'Center Count',
-    'center_grant_funding': 'Center Funding'
-})
-
 table_event = st.dataframe(
     display_df,
     hide_index=True,
     on_select="rerun",
     selection_mode="multi-row",
+    key="summary_table",
     column_config={
         "Training Funding": st.column_config.NumberColumn(format="$%.0f"),
         "Center Funding": st.column_config.NumberColumn(format="$%.0f")
@@ -193,31 +250,11 @@ table_event = st.dataframe(
     use_container_width=True
 )
 
-# --- Drill Down Logic ---
-selected_institutions = set()
-
-# 1. From Table
-if table_event and table_event.selection.rows:
-    for row_idx in table_event.selection.rows:
-        selected_institutions.add(display_df.iloc[row_idx]['Institution'])
-
-# 2. From Funding Chart
-if funding_event and funding_event.selection.get("Select"):
-    for item in funding_event.selection.get("Select"):
-        if "institution" in item:
-            selected_institutions.add(item["institution"])
-
-# 3. From Count Chart
-if count_event and count_event.selection.get("Select"):
-    for item in count_event.selection.get("Select"):
-        if "institution" in item:
-            selected_institutions.add(item["institution"])
-
 st.divider()
 
-if selected_institutions:
-    st.subheader(f"Itemized Grants Detail: {', '.join(selected_institutions)}")
-    df_itemized_display = df_itemized_filtered[df_itemized_filtered['institution'].isin(selected_institutions)]
+if st.session_state.selected_institutions:
+    st.subheader(f"Itemized Grants Detail: {', '.join(st.session_state.selected_institutions)}")
+    df_itemized_display = df_itemized_filtered[df_itemized_filtered['institution'].isin(st.session_state.selected_institutions)]
 else:
     st.subheader("Itemized Grants Detail")
     st.info("Showing all grants. Select specific institutions above to drill down.")
@@ -226,7 +263,8 @@ else:
 if not df_itemized_display.empty:
     display_itemized = df_itemized_display[[
         'institution', 'grant_type', 'core_project_num', 'project_title', 
-        'contact_pi_name', 'award_amount', 'agency_ic', 'project_start_date', 'project_end_date', 'project_detail_url'
+        'contact_pi_name', 'award_amount', 'fiscal_year', 'budget_start', 'budget_end', 'is_no_cost_extension',
+        'agency_ic', 'project_start_date', 'project_end_date', 'project_detail_url'
     ]].copy()
     
     display_itemized = display_itemized.rename(columns={
@@ -236,9 +274,13 @@ if not df_itemized_display.empty:
         'project_title': 'Title',
         'contact_pi_name': 'PI Name',
         'award_amount': 'Award Amount',
+        'fiscal_year': 'FY',
+        'budget_start': 'Budget Start',
+        'budget_end': 'Budget End',
+        'is_no_cost_extension': 'NCE',
         'agency_ic': 'Agency',
-        'project_start_date': 'Start Date',
-        'project_end_date': 'End Date',
+        'project_start_date': 'Project Start',
+        'project_end_date': 'Project End',
         'project_detail_url': 'URL'
     })
     
@@ -250,9 +292,13 @@ if not df_itemized_display.empty:
         hide_index=True,
         column_config={
             "Award Amount": st.column_config.NumberColumn(format="$%.0f"),
+            "FY": st.column_config.NumberColumn(format="%d"),
+            "Budget Start": st.column_config.DateColumn(format="YYYY-MM-DD"),
+            "Budget End": st.column_config.DateColumn(format="YYYY-MM-DD"),
+            "NCE": st.column_config.CheckboxColumn("No-Cost Extension"),
             "URL": st.column_config.LinkColumn("View on RePORTER"),
-            "Start Date": st.column_config.DateColumn(format="YYYY-MM-DD"),
-            "End Date": st.column_config.DateColumn(format="YYYY-MM-DD")
+            "Project Start": st.column_config.DateColumn(format="YYYY-MM-DD"),
+            "Project End": st.column_config.DateColumn(format="YYYY-MM-DD")
         },
         use_container_width=True
     )
