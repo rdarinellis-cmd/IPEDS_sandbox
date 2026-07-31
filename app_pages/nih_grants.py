@@ -11,6 +11,7 @@ def load_nih_data():
     df_agg = pd.read_parquet(agg_path) if os.path.exists(agg_path) else pd.DataFrame()
     df_itemized = pd.read_parquet(itemized_path) if os.path.exists(itemized_path) else pd.DataFrame()
     
+    # Cache busted on 2026-07-31 to pick up new application-level columns
     return df_agg, df_itemized
 
 df, df_itemized_all = load_nih_data()
