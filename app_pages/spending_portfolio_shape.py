@@ -367,7 +367,7 @@ else:
                     column_config={
                         "Category": "Expense Category",
                         "Wayne State University": st.column_config.NumberColumn("Wayne State (%)", format="%.1f%%"),
-                        f"Peer Medians ({active_name})": st.column_config.NumberColumn("Peer Median (%)", format="%.1f%%")
+                        f"Peer Medians ({selected_cohort})": st.column_config.NumberColumn("Peer Median (%)", format="%.1f%%")
                     },
                     width="stretch"
                 )
@@ -414,6 +414,6 @@ else:
         st.download_button(
             label="Download Table as CSV",
             data=csv_data,
-            file_name=f"ipeds_expenditure_shares_{active_name.lower().replace(' ', '_')}.csv",
+            file_name=f"ipeds_expenditure_shares_{selected_cohort.lower().replace(' ', '_')}.csv",
             mime="text/csv"
         )
