@@ -46,6 +46,7 @@ pg = st.navigation([
     st.Page("app_pages/spending_analyzer.py", title="Spending Analyzer", icon="💰"),
     st.Page("app_pages/spending_portfolio_shape.py", title="Expenditure Shape", icon="📈"),
     st.Page("app_pages/cip_market_share.py", title="CIP Market Share", icon="📊"),
+    st.Page("app_pages/nih_grants.py", title="NIH Grants", icon="🔬"),
     #st.Page("app_pages/wsu_outcomes_matrix.py", title="WSU Outcomes Matrix", icon="🎓")
 ])
 

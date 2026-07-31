@@ -441,6 +441,32 @@ def compile_portfolio_shape():
     print(f"   Saved: spending_portfolio_shape.parquet ({len(df_merged)} rows)")
 
 
+def compile_nih_grants():
+    """Extract NIH RePORTER data for our peer set."""
+    print("📦 Compiling NIH RePORTER data...")
+    raw_path = os.path.join("data/raw/nih", "nih_reporter_training_vs_center.csv")
+    if not os.path.exists(raw_path):
+        print(f"⚠️ Warning: Missing {raw_path}. Skipping NIH compilation.")
+        return
+        
+    df_nih = pd.read_csv(raw_path)
+    
+    # Load base metadata to get UNITID, is_mi_public, is_urban_peer, is_public_r1
+    base_path = os.path.join(APP_DIR, "spending_portfolio_shape.parquet")
+    if not os.path.exists(base_path):
+        print(f"⚠️ Warning: Missing {base_path}. Cannot merge peer flags. Skipping.")
+        return
+        
+    df_meta = pd.read_parquet(base_path)[['UNITID', 'INSTNM', 'is_mi_public', 'is_urban_peer', 'is_public_r1']].drop_duplicates()
+    
+    # Merge on institution name
+    df_merged = df_nih.merge(df_meta, left_on='institution', right_on='INSTNM', how='inner')
+    
+    dest_path = os.path.join(APP_DIR, "nih_grants.parquet")
+    df_merged.to_parquet(dest_path, index=False)
+    print(f"   Saved: nih_grants.parquet ({len(df_merged)} rows)")
+
+
 def main():
     os.makedirs(APP_DIR, exist_ok=True)
     print("Starting App Data compilation pipeline...")
@@ -448,6 +474,7 @@ def main():
     compile_dictionaries()
     compile_spending()
     compile_portfolio_shape()
+    compile_nih_grants()
     print("🏁 App Data compilation complete!")
 
 
