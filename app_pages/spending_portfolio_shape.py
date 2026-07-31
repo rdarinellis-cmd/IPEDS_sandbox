@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import duckdb
 import os
 import altair as alt
 
