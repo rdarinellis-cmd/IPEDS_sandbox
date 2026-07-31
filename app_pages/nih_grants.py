@@ -102,6 +102,8 @@ with col1:
         axis=1
     )
     
+    click_selection = alt.selection_point(name='Select', fields=['institution'])
+    
     funding_chart = alt.Chart(df_funding).mark_bar().encode(
         x=alt.X('Funding:Q', title="Total Funding ($)", axis=alt.Axis(format='$,.0f')),
         y=alt.Y('institution:N', title=None, sort='-x'),
@@ -113,14 +115,15 @@ with col1:
             ),
             legend=alt.Legend(title="Institution & Grant Type")
         ),
+        opacity=alt.condition(click_selection, alt.value(1.0), alt.value(0.3)),
         tooltip=[
             alt.Tooltip('institution', title="Institution"),
             alt.Tooltip('Grant Type', title="Type"),
             alt.Tooltip('Funding:Q', title="Funding", format='$,.0f')
         ]
-    ).properties(height=400)
+    ).properties(height=400).add_params(click_selection)
     
-    st.altair_chart(funding_chart, use_container_width=True)
+    funding_event = st.altair_chart(funding_chart, use_container_width=True, on_select="rerun")
 
 with col2:
     st.subheader("Grant Count Comparison")
@@ -149,21 +152,79 @@ with col2:
             ),
             legend=alt.Legend(title="Institution & Grant Type")
         ),
+        opacity=alt.condition(click_selection, alt.value(1.0), alt.value(0.3)),
         tooltip=[
             alt.Tooltip('institution', title="Institution"),
             alt.Tooltip('Grant Type', title="Type"),
             alt.Tooltip('Count:Q', title="Count")
         ]
-    ).properties(height=400)
+    ).properties(height=400).add_params(click_selection)
     
-    st.altair_chart(count_chart, use_container_width=True)
+    count_event = st.altair_chart(count_chart, use_container_width=True, on_select="rerun")
 
 st.divider()
 
-st.subheader("Itemized Grants Detail")
+st.subheader("Summary by Institution")
+st.markdown("Click on a row below, or a bar in the charts above, to drill down into the itemized grants.")
 
-if not df_itemized_filtered.empty:
-    display_itemized = df_itemized_filtered[[
+display_df = df_filtered[[
+    'institution', 
+    'training_grant_count', 'training_grant_funding',
+    'center_grant_count', 'center_grant_funding'
+]].copy()
+
+display_df = display_df.rename(columns={
+    'institution': 'Institution',
+    'training_grant_count': 'Training Count',
+    'training_grant_funding': 'Training Funding',
+    'center_grant_count': 'Center Count',
+    'center_grant_funding': 'Center Funding'
+})
+
+table_event = st.dataframe(
+    display_df,
+    hide_index=True,
+    on_select="rerun",
+    selection_mode="multi-row",
+    column_config={
+        "Training Funding": st.column_config.NumberColumn(format="$%.0f"),
+        "Center Funding": st.column_config.NumberColumn(format="$%.0f")
+    },
+    use_container_width=True
+)
+
+# --- Drill Down Logic ---
+selected_institutions = set()
+
+# 1. From Table
+if table_event and table_event.selection.rows:
+    for row_idx in table_event.selection.rows:
+        selected_institutions.add(display_df.iloc[row_idx]['Institution'])
+
+# 2. From Funding Chart
+if funding_event and funding_event.selection.get("Select"):
+    for item in funding_event.selection.get("Select"):
+        if "institution" in item:
+            selected_institutions.add(item["institution"])
+
+# 3. From Count Chart
+if count_event and count_event.selection.get("Select"):
+    for item in count_event.selection.get("Select"):
+        if "institution" in item:
+            selected_institutions.add(item["institution"])
+
+st.divider()
+
+if selected_institutions:
+    st.subheader(f"Itemized Grants Detail: {', '.join(selected_institutions)}")
+    df_itemized_display = df_itemized_filtered[df_itemized_filtered['institution'].isin(selected_institutions)]
+else:
+    st.subheader("Itemized Grants Detail")
+    st.info("Showing all grants. Select specific institutions above to drill down.")
+    df_itemized_display = df_itemized_filtered
+
+if not df_itemized_display.empty:
+    display_itemized = df_itemized_display[[
         'institution', 'grant_type', 'core_project_num', 'project_title', 
         'contact_pi_name', 'award_amount', 'agency_ic', 'project_start_date', 'project_end_date', 'project_detail_url'
     ]].copy()
