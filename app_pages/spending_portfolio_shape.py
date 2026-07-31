@@ -324,7 +324,7 @@ else:
                 peer_data.append({
                     'Category': cat,
                     'Share %': peer_median,
-                    'Group': f'Peer Medians ({active_name})'
+                    'Group': f'Peer Medians ({selected_cohort})'
                 })
                 
             df_plot = pd.DataFrame(wsu_data + peer_data)
@@ -333,7 +333,7 @@ else:
             bar_chart = alt.Chart(df_plot).mark_bar().encode(
                 x=alt.X('Group:N', title=None, axis=alt.Axis(labels=False)),
                 y=alt.Y('Share %:Q', title="Share of Core Expenses (%)", scale=alt.Scale(domain=[0, 100])),
-                color=alt.Color('Group:N', scale=alt.Scale(domain=['Wayne State University', f'Peer Medians ({active_name})'], range=['#0C5449', '#FFCC33']), legend=alt.Legend(title="Portfolio Group")),
+                color=alt.Color('Group:N', scale=alt.Scale(domain=['Wayne State University', f'Peer Medians ({selected_cohort})'], range=['#0C5449', '#FFCC33']), legend=alt.Legend(title="Portfolio Group")),
                 column=alt.Column('Category:N', title="Functional Expense Category", header=alt.Header(labelOrient='bottom', titleOrient='bottom', labelAngle=-45, labelPadding=10)),
                 tooltip=[
                     alt.Tooltip('Group:N', title="Group"),
