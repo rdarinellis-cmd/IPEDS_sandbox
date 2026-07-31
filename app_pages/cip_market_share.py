@@ -232,11 +232,29 @@ else:
         col3.metric("Median CAGR", median_cagr_str)
 
         # Scale axes dynamically to fit data points exactly (zero=False) with padding to prevent clipping
-        scatter = alt.Chart(plot_data).mark_point(size=150, opacity=0.8, filled=True).encode(
+        scatter = alt.Chart(plot_data).mark_point(filled=True).encode(
             x=alt.X('market_share:Q', title="Market Share (2024)", axis=alt.Axis(format='%'), scale=alt.Scale(zero=False, padding=15)),
             y=alt.Y('cagr:Q', title="5-Year CAGR (2019-2024)", axis=alt.Axis(format='%'), scale=alt.Scale(zero=False, padding=15)),
-            color=alt.Color('institution:N', legend=None),
-            shape=alt.Shape('institution:N', legend=None),
+            color=alt.condition(
+                alt.datum.institution == 'Wayne State University',
+                alt.value('#0C5449'),
+                alt.Color('institution:N', legend=None)
+            ),
+            shape=alt.condition(
+                alt.datum.institution == 'Wayne State University',
+                alt.value('diamond'),
+                alt.Shape('institution:N', legend=None)
+            ),
+            size=alt.condition(
+                alt.datum.institution == 'Wayne State University',
+                alt.value(400),
+                alt.value(150)
+            ),
+            opacity=alt.condition(
+                alt.datum.institution == 'Wayne State University',
+                alt.value(1.0),
+                alt.value(0.7)
+            ),
             tooltip=[
                 alt.Tooltip('institution:N', title="Institution"),
                 alt.Tooltip('2024:Q', title="Degrees (2024)"),
