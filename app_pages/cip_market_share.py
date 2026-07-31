@@ -238,7 +238,7 @@ else:
             color=alt.condition(
                 alt.datum.institution == 'Wayne State University',
                 alt.value('#0C5449'),
-                alt.Color('institution:N', legend=None)
+                alt.value('#737373')
             ),
             shape=alt.condition(
                 alt.datum.institution == 'Wayne State University',

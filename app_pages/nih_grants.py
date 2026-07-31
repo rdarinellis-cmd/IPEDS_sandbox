@@ -5,12 +5,15 @@ import os
 
 @st.cache_data(ttl=3600)
 def load_nih_data():
-    file_path = "data/app/nih_grants.parquet"
-    if os.path.exists(file_path):
-        return pd.read_parquet(file_path)
-    return pd.DataFrame()
+    agg_path = "data/app/nih_grants.parquet"
+    itemized_path = "data/app/nih_grants_itemized.parquet"
+    
+    df_agg = pd.read_parquet(agg_path) if os.path.exists(agg_path) else pd.DataFrame()
+    df_itemized = pd.read_parquet(itemized_path) if os.path.exists(itemized_path) else pd.DataFrame()
+    
+    return df_agg, df_itemized
 
-df = load_nih_data()
+df, df_itemized_all = load_nih_data()
 
 # ==========================================
 # SIDEBAR FILTERS (Rule 4: Unified Layout)
@@ -38,10 +41,13 @@ if not df.empty:
 
     if selected_schools:
         df_filtered = df_cohort[df_cohort['institution'].isin(selected_schools)]
+        df_itemized_filtered = df_itemized_all[df_itemized_all['institution'].isin(selected_schools)] if not df_itemized_all.empty else pd.DataFrame()
     else:
         df_filtered = df_cohort
+        df_itemized_filtered = df_itemized_all
 else:
     df_filtered = pd.DataFrame()
+    df_itemized_filtered = pd.DataFrame()
 
 # Attribution Note at bottom of sidebar (Rule 1 & 4)
 st.sidebar.markdown("""
@@ -91,10 +97,22 @@ with col1:
         'center_grant_funding': 'Center Grants'
     })
     
+    df_funding['Chart Color'] = df_funding.apply(
+        lambda x: f"WSU - {x['Grant Type']}" if x['institution'] == 'Wayne State University' else f"Peers - {x['Grant Type']}", 
+        axis=1
+    )
+    
     funding_chart = alt.Chart(df_funding).mark_bar().encode(
         x=alt.X('Funding:Q', title="Total Funding ($)", axis=alt.Axis(format='$,.0f')),
         y=alt.Y('institution:N', title=None, sort='-x'),
-        color=alt.Color('Grant Type:N', scale=alt.Scale(range=['#0C5449', '#F2A900'])),
+        color=alt.Color(
+            'Chart Color:N', 
+            scale=alt.Scale(
+                domain=['WSU - Training Grants', 'WSU - Center Grants', 'Peers - Training Grants', 'Peers - Center Grants'],
+                range=['#0C5449', '#F2A900', '#000000', '#737373']
+            ),
+            legend=alt.Legend(title="Institution & Grant Type")
+        ),
         tooltip=[
             alt.Tooltip('institution', title="Institution"),
             alt.Tooltip('Grant Type', title="Type"),
@@ -115,10 +133,22 @@ with col2:
         'center_grant_count': 'Center Grants'
     })
     
+    df_count['Chart Color'] = df_count.apply(
+        lambda x: f"WSU - {x['Grant Type']}" if x['institution'] == 'Wayne State University' else f"Peers - {x['Grant Type']}", 
+        axis=1
+    )
+    
     count_chart = alt.Chart(df_count).mark_bar().encode(
         x=alt.X('Count:Q', title="Number of Grants"),
         y=alt.Y('institution:N', title=None, sort='-x'),
-        color=alt.Color('Grant Type:N', scale=alt.Scale(range=['#0C5449', '#F2A900'])),
+        color=alt.Color(
+            'Chart Color:N', 
+            scale=alt.Scale(
+                domain=['WSU - Training Grants', 'WSU - Center Grants', 'Peers - Training Grants', 'Peers - Center Grants'],
+                range=['#0C5449', '#F2A900', '#000000', '#737373']
+            ),
+            legend=alt.Legend(title="Institution & Grant Type")
+        ),
         tooltip=[
             alt.Tooltip('institution', title="Institution"),
             alt.Tooltip('Grant Type', title="Type"),
@@ -130,27 +160,40 @@ with col2:
 
 st.divider()
 
-st.subheader("Raw Data Table")
-# Format dataframe for display
-display_df = df_filtered[[
-    'institution', 
-    'training_grant_count', 'training_grant_funding',
-    'center_grant_count', 'center_grant_funding'
-]].copy()
-display_df = display_df.rename(columns={
-    'institution': 'Institution',
-    'training_grant_count': 'Training Count',
-    'training_grant_funding': 'Training Funding',
-    'center_grant_count': 'Center Count',
-    'center_grant_funding': 'Center Funding'
-})
+st.subheader("Itemized Grants Detail")
 
-st.dataframe(
-    display_df,
-    hide_index=True,
-    column_config={
-        "Training Funding": st.column_config.NumberColumn(format="$%.0f"),
-        "Center Funding": st.column_config.NumberColumn(format="$%.0f")
-    },
-    use_container_width=True
-)
+if not df_itemized_filtered.empty:
+    display_itemized = df_itemized_filtered[[
+        'institution', 'grant_type', 'core_project_num', 'project_title', 
+        'contact_pi_name', 'award_amount', 'agency_ic', 'project_start_date', 'project_end_date', 'project_detail_url'
+    ]].copy()
+    
+    display_itemized = display_itemized.rename(columns={
+        'institution': 'Institution',
+        'grant_type': 'Type',
+        'core_project_num': 'Project #',
+        'project_title': 'Title',
+        'contact_pi_name': 'PI Name',
+        'award_amount': 'Award Amount',
+        'agency_ic': 'Agency',
+        'project_start_date': 'Start Date',
+        'project_end_date': 'End Date',
+        'project_detail_url': 'URL'
+    })
+    
+    # Sort for better readability
+    display_itemized = display_itemized.sort_values(['Institution', 'Type', 'Award Amount'], ascending=[True, True, False])
+    
+    st.dataframe(
+        display_itemized,
+        hide_index=True,
+        column_config={
+            "Award Amount": st.column_config.NumberColumn(format="$%.0f"),
+            "URL": st.column_config.LinkColumn("View on RePORTER"),
+            "Start Date": st.column_config.DateColumn(format="YYYY-MM-DD"),
+            "End Date": st.column_config.DateColumn(format="YYYY-MM-DD")
+        },
+        use_container_width=True
+    )
+else:
+    st.info("No itemized grant data available for the current selection.")

@@ -29,4 +29,8 @@ Every dashboard page containing filters must organize its layout as follows:
 - **Main Page Title & Dynamic Subtitles:** Draw the main title, followed immediately by a dynamic caption showing the active cohort group, year range, and primary metrics being analyzed (e.g. `st.caption(f"#### Scope: {selected_cohort} | Years: ... | Metrics: ...")`).
 - **Selector Naming:** The cohort group selectbox must be named `"Select Cohort Group"` and have the options `["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"]`. The cohort member selector must be named `"Select Universities"` (or `"Select Peer Universities"`).
 
+### 5. Institutional Visual Identity (Wayne State vs Peers)
+Always represent Wayne State University distinctively using **WSU Green** (`#0C5449`) and **WSU Gold** (`#F2A900`) across all charts. 
+All peer institutions or peer medians must be represented uniformly and distinctly from WSU using neutral styling (e.g., Black `#000000` and Grey `#737373` or `#cccccc`), ensuring Wayne State immediately stands out in all visual comparisons.
+
 *Note: These instructions are loaded as workspace rules and must be adhered to by all developer agents working on this project.*

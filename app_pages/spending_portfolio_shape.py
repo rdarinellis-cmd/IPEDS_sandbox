@@ -192,7 +192,7 @@ else:
         else:
             # Build Altair Chart
             # 1. Peer Shaded Band (25th to 75th percentiles)
-            band = alt.Chart(df_peer_stats).mark_area(opacity=0.2, color='#818cf8').encode(
+            band = alt.Chart(df_peer_stats).mark_area(opacity=0.2, color='#cccccc').encode(
                 x=alt.X('YEAR:O', title="Fiscal Year"),
                 y=alt.Y('P25:Q', title=f"{selected_cat} (% of Core Expenses)"),
                 y2=alt.Y2('P75:Q'),
@@ -204,7 +204,7 @@ else:
             )
 
             # 2. Peer Median Line
-            median_line = alt.Chart(df_peer_stats).mark_line(strokeDash=[4, 4], color='#4f46e5', strokeWidth=1.5).encode(
+            median_line = alt.Chart(df_peer_stats).mark_line(strokeDash=[4, 4], color='#000000', strokeWidth=1.5).encode(
                 x='YEAR:O',
                 y='Median:Q',
                 tooltip=[
@@ -236,7 +236,7 @@ else:
                 peer_lines = alt.Chart(df_selected_peers).mark_line(opacity=0.7, strokeWidth=2).encode(
                     x='YEAR:O',
                     y=f'{selected_cat}:Q',
-                    color=alt.Color('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
+                    color=alt.value('#737373'),
                     strokeDash=alt.StrokeDash('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
                     tooltip=[
                         alt.Tooltip('INSTNM:N', title="Institution"),
@@ -247,7 +247,7 @@ else:
                 peer_points = alt.Chart(df_selected_peers).mark_point(filled=True, size=60).encode(
                     x='YEAR:O',
                     y=f'{selected_cat}:Q',
-                    color=alt.Color('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
+                    color=alt.value('#737373'),
                     shape=alt.Shape('INSTNM:N', legend=alt.Legend(title="Direct Comparison Peers")),
                     tooltip=[
                         alt.Tooltip('INSTNM:N', title="Institution"),
@@ -332,7 +332,7 @@ else:
             bar_chart = alt.Chart(df_plot).mark_bar().encode(
                 x=alt.X('Group:N', title=None, axis=alt.Axis(labels=False)),
                 y=alt.Y('Share %:Q', title="Share of Core Expenses (%)", scale=alt.Scale(domain=[0, 100])),
-                color=alt.Color('Group:N', scale=alt.Scale(domain=['Wayne State University', f'Peer Medians ({selected_cohort})'], range=['#0C5449', '#FFCC33']), legend=alt.Legend(title="Portfolio Group")),
+                color=alt.Color('Group:N', scale=alt.Scale(domain=['Wayne State University', f'Peer Medians ({selected_cohort})'], range=['#0C5449', '#737373']), legend=alt.Legend(title="Portfolio Group")),
                 column=alt.Column('Category:N', title="Functional Expense Category", header=alt.Header(labelOrient='bottom', titleOrient='bottom', labelAngle=-45, labelPadding=10)),
                 tooltip=[
                     alt.Tooltip('Group:N', title="Group"),

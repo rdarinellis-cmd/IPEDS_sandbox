@@ -295,6 +295,11 @@ with tab_summary:
             value_name='Spend per FTE'
         )
         
+        df_tidy['Chart Color'] = df_tidy.apply(
+            lambda x: f"WSU - {x['Spending Category']}" if x['INSTNM'] == 'Wayne State University' else f"Peers - {x['Spending Category']}", 
+            axis=1
+        )
+        
         # Grouped Bar Chart in Altair
         # Base chart for layering
         base = alt.Chart(df_tidy).encode(
@@ -311,12 +316,15 @@ with tab_summary:
             y=alt.Y('Spend per FTE:Q', title="Spend per FTE ($)"),
             xOffset='Spending Category:N',
             color=alt.Color(
-                'Spending Category:N', 
+                'Chart Color:N', 
                 scale=alt.Scale(
-                    domain=['Instruction per FTE', 'Academic Support per FTE', 'Student Services per FTE'], 
-                    range=['#0C5449', '#FFCC33', '#111111']
+                    domain=[
+                        'WSU - Instruction per FTE', 'WSU - Academic Support per FTE', 'WSU - Student Services per FTE',
+                        'Peers - Instruction per FTE', 'Peers - Academic Support per FTE', 'Peers - Student Services per FTE'
+                    ], 
+                    range=['#0C5449', '#F2A900', '#111111', '#555555', '#999999', '#cccccc']
                 ), 
-                legend=alt.Legend(title="Category")
+                legend=alt.Legend(title="Institution & Category")
             ),
             tooltip=['INSTNM', 'Spending Category', alt.Tooltip('Spend per FTE:Q', format='$,.2f')]
         )
@@ -452,7 +460,11 @@ with tab_trends:
                             trend_lines = alt.Chart(df_plot_trends).mark_line().encode(
                                 x=alt.X('academic_year:O', title="Academic Year"),
                                 y=alt.Y('Spend:Q', title=f"{metric_to_plot} ($)"),
-                                color=alt.Color('Institution:N', legend=alt.Legend(title="Institution")),
+                                color=alt.condition(
+                                    alt.datum.Institution == 'Wayne State University',
+                                    alt.value('#0C5449'),
+                                    alt.value('#737373')
+                                ),
                                 strokeDash=alt.StrokeDash('Institution:N', legend=alt.Legend(title="Institution")),
                                 tooltip=['Institution', 'academic_year', alt.Tooltip('Spend:Q', format='$,.2f')]
                             )
@@ -461,7 +473,11 @@ with tab_trends:
                             trend_points = alt.Chart(df_plot_trends).mark_point(filled=True, size=60).encode(
                                 x='academic_year:O',
                                 y='Spend:Q',
-                                color='Institution:N',
+                                color=alt.condition(
+                                    alt.datum.Institution == 'Wayne State University',
+                                    alt.value('#0C5449'),
+                                    alt.value('#737373')
+                                ),
                                 shape=alt.Shape('Institution:N', legend=alt.Legend(title="Institution")),
                                 tooltip=['Institution', 'academic_year', alt.Tooltip('Spend:Q', format='$,.2f')]
                             )

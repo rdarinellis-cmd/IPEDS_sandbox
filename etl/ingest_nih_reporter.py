@@ -94,7 +94,13 @@ def query(org_name, activity_codes, fiscal_years):
             for _ in range(random.randint(1, 15)):
                 all_results.append({
                     "core_project_num": f"MOCK-{random.randint(1000, 9999)}",
+                    "project_title": "Mock Research Initiative for Advanced Study",
+                    "contact_pi_name": "DOE, JOHN",
                     "award_amount": random.randint(100000, 2000000),
+                    "agency_ic_admin": {"abbreviation": "NCI"},
+                    "project_start_date": "2020-01-01T00:00:00",
+                    "project_end_date": "2025-12-31T00:00:00",
+                    "project_detail_url": "https://reporter.nih.gov",
                     "organization": {"org_name": org_name}
                 })
             break
@@ -124,6 +130,8 @@ def summarize(results):
 
 def main():
     rows = []
+    itemized_rows = []
+    
     for label, org_name in INSTITUTIONS.items():
         print(f"Querying {label}...")
         training_results = query(org_name, TRAINING_CODES, FISCAL_YEARS)
@@ -132,6 +140,7 @@ def main():
         t_summary = summarize(training_results)
         c_summary = summarize(center_results)
 
+        # Build aggregated row
         rows.append({
             "institution": label,
             "org_name_queried": org_name,
@@ -142,18 +151,42 @@ def main():
             "center_grant_funding": c_summary["total_funding"],
             "center_org_names_matched": c_summary["org_names_matched"],
         })
+        
+        # Build itemized rows
+        for r_type, res_list in [("Training", training_results), ("Center", center_results)]:
+            for r in res_list:
+                itemized_rows.append({
+                    "institution": label,
+                    "grant_type": r_type,
+                    "core_project_num": r.get("core_project_num"),
+                    "project_title": r.get("project_title"),
+                    "contact_pi_name": r.get("contact_pi_name"),
+                    "award_amount": r.get("award_amount", 0),
+                    "agency_ic": r.get("agency_ic_admin", {}).get("abbreviation") if isinstance(r.get("agency_ic_admin"), dict) else None,
+                    "project_start_date": r.get("project_start_date"),
+                    "project_end_date": r.get("project_end_date"),
+                    "project_detail_url": r.get("project_detail_url"),
+                    "org_name": r.get("organization", {}).get("org_name") if isinstance(r.get("organization"), dict) else None
+                })
+                
         time.sleep(0.5)
 
-    df = pd.DataFrame(rows)
+    df_agg = pd.DataFrame(rows)
+    df_itemized = pd.DataFrame(itemized_rows)
     
     # Save to data/raw/nih as per ETL boundary architecture
     os.makedirs("data/raw/nih", exist_ok=True)
-    out_path = "data/raw/nih/nih_reporter_training_vs_center.csv"
-    df.to_csv(out_path, index=False)
     
-    print("\nSample Data:")
-    print(df.head())
-    print(f"\nSaved to {out_path}")
+    agg_out = "data/raw/nih/nih_reporter_training_vs_center.csv"
+    df_agg.to_csv(agg_out, index=False)
+    
+    item_out = "data/raw/nih/nih_reporter_itemized.csv"
+    df_itemized.to_csv(item_out, index=False)
+    
+    print("\nSample Aggregated Data:")
+    print(df_agg.head())
+    print(f"\nSaved aggregated to {agg_out}")
+    print(f"Saved itemized to {item_out} ({len(df_itemized)} rows)")
     print("\nCHECK: if any 'org_names_matched' is empty or unexpected, that")
     print("institution's true count is likely 0 in this API call OR the")
     print("org_name string didn't match — verify against reporter.nih.gov's")

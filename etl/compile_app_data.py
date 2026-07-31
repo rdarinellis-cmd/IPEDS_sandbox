@@ -445,11 +445,14 @@ def compile_nih_grants():
     """Extract NIH RePORTER data for our peer set."""
     print("📦 Compiling NIH RePORTER data...")
     raw_path = os.path.join("data/raw/nih", "nih_reporter_training_vs_center.csv")
-    if not os.path.exists(raw_path):
-        print(f"⚠️ Warning: Missing {raw_path}. Skipping NIH compilation.")
+    itemized_raw_path = os.path.join("data/raw/nih", "nih_reporter_itemized.csv")
+    
+    if not os.path.exists(raw_path) or not os.path.exists(itemized_raw_path):
+        print(f"⚠️ Warning: Missing NIH raw files. Skipping NIH compilation.")
         return
         
     df_nih = pd.read_csv(raw_path)
+    df_itemized = pd.read_csv(itemized_raw_path)
     
     # Load base metadata to get UNITID, is_mi_public, is_urban_peer, is_public_r1
     base_path = os.path.join(APP_DIR, "spending_portfolio_shape.parquet")
@@ -459,12 +462,18 @@ def compile_nih_grants():
         
     df_meta = pd.read_parquet(base_path)[['UNITID', 'INSTNM', 'is_mi_public', 'is_urban_peer', 'is_public_r1']].drop_duplicates()
     
-    # Merge on institution name
+    # Merge on institution name for aggregated
     df_merged = df_nih.merge(df_meta, left_on='institution', right_on='INSTNM', how='inner')
     
     dest_path = os.path.join(APP_DIR, "nih_grants.parquet")
     df_merged.to_parquet(dest_path, index=False)
     print(f"   Saved: nih_grants.parquet ({len(df_merged)} rows)")
+
+    # Merge on institution name for itemized
+    df_itemized_merged = df_itemized.merge(df_meta, left_on='institution', right_on='INSTNM', how='inner')
+    itemized_dest_path = os.path.join(APP_DIR, "nih_grants_itemized.parquet")
+    df_itemized_merged.to_parquet(itemized_dest_path, index=False)
+    print(f"   Saved: nih_grants_itemized.parquet ({len(df_itemized_merged)} rows)")
 
 
 def main():
