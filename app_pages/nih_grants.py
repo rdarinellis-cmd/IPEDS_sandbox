@@ -20,7 +20,7 @@ df, df_itemized_all = load_nih_data()
 # ==========================================
 
 cohort_options = ["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"]
-selected_cohort = st.sidebar.selectbox("Select Cohort Group", options=cohort_options)
+selected_cohort = st.sidebar.selectbox("Select Cohort Group", options=cohort_options, index=1)
 
 if not df.empty:
     if selected_cohort == "Michigan Publics (MASU)":
