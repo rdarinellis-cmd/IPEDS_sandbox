@@ -194,7 +194,7 @@ with col1:
         ]
     ).properties(height=400).add_params(click_selection)
     
-    funding_event = st.altair_chart(funding_chart, use_container_width=True, on_select="rerun", key="funding_chart")
+    funding_event = st.altair_chart(funding_chart, width="stretch", on_select="rerun", key="funding_chart")
 
 with col2:
     st.subheader("Grant Count Comparison")
@@ -231,7 +231,7 @@ with col2:
         ]
     ).properties(height=400).add_params(click_selection)
     
-    count_event = st.altair_chart(count_chart, use_container_width=True, on_select="rerun", key="count_chart")
+    count_event = st.altair_chart(count_chart, width="stretch", on_select="rerun", key="count_chart")
 
 st.divider()
 
@@ -248,7 +248,7 @@ table_event = st.dataframe(
         "Training Funding": st.column_config.NumberColumn(format="$%.0f"),
         "Center Funding": st.column_config.NumberColumn(format="$%.0f")
     },
-    use_container_width=True
+    width="stretch"
 )
 
 st.divider()
@@ -301,7 +301,7 @@ if not df_itemized_display.empty:
             "Project Start": st.column_config.DateColumn(format="YYYY-MM-DD"),
             "Project End": st.column_config.DateColumn(format="YYYY-MM-DD")
         },
-        use_container_width=True
+        width="stretch"
     )
 else:
     st.info("No itemized grant data available for the current selection.")

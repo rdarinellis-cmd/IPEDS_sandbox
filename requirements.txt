@@ -1,9 +1,9 @@
-pandas>=3.0
-pyarrow>=24.0
-streamlit>=1.59
-openpyxl>=3.1
-requests>=2.34
-altair>=6.2
+pandas
+pyarrow
+streamlit
+openpyxl
+requests
+altair
 plotly
 watchdog
 duckdb

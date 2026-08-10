@@ -476,6 +476,117 @@ def compile_nih_grants():
     print(f"   Saved: nih_grants_itemized.parquet ({len(df_itemized_merged)} rows)")
 
 
+def compile_nsf_herd():
+    """Extract NSF HERD data for our peer set, handling missing UnitIDs for multicampus systems."""
+    print("📦 Compiling NSF HERD data...")
+    raw_path = os.path.join("data/raw/nsf_herd", "herd2024.csv")
+    
+    if not os.path.exists(raw_path):
+        print(f"⚠️ Warning: Missing {raw_path}. Skipping NSF HERD compilation.")
+        return
+        
+    # Read the dataset
+    df_herd = pd.read_csv(raw_path, low_memory=False)
+    
+    # Map missing IPEDS UnitIDs for known systems in our peer cohorts
+    HERD_UNITID_MAP = {
+        'University of Colorado Anschutz Medical Campus': 126562,
+        'University of Colorado Denver': 126562,
+        'University of Connecticut': 129020,
+        'University of Maryland': 163286,
+        'Western Michigan University and Homer Stryker M.D. School of Medicine': 172699,
+        'University of Mississippi': 176017,
+        'University of Nebraska, Lincoln and Medical Center': 181464,
+        'University of New Hampshire': 183044,
+        'University of Cincinnati': 201885,
+        'Kent State University': 203517,
+        'Ohio State University, The': 204796,
+        'Ohio University': 204857,
+        'Oregon State University': 209542,
+        'Texas A&M University, College Station and Health Science Center': 228723
+    }
+    
+    mask = df_herd['ipeds_unitid'].isna() & df_herd['inst_name_long'].isin(HERD_UNITID_MAP.keys())
+    df_herd.loc[mask, 'ipeds_unitid'] = df_herd.loc[mask, 'inst_name_long'].map(HERD_UNITID_MAP)
+    
+    # Load base metadata to filter to our peer set and merge peer flags
+    base_path = os.path.join(APP_DIR, "spending_portfolio_shape.parquet")
+    if not os.path.exists(base_path):
+        print(f"⚠️ Warning: Missing {base_path}. Cannot merge peer flags. Skipping.")
+        return
+        
+    df_meta = pd.read_parquet(base_path)[['UNITID', 'INSTNM', 'is_mi_public', 'is_urban_peer', 'is_public_r1']].drop_duplicates()
+    
+    # Filter HERD to our peers
+    df_herd = df_herd[df_herd['ipeds_unitid'].isin(df_meta['UNITID'])]
+    
+    # Extract Metrics
+    # 01.a = Federal, 01.b = State, 01.c = Business, 01.d = Nonprofit, 01.e = Institution, 01.f = All other, 01.g = Total
+    # 15 = Personnel Headcount (Total = Total, Researchers = Researchers, Support Staff = Support Staff, Technicians = Technicians)
+    
+    # Expenditures
+    q1 = df_herd[df_herd['questionnaire_no'].astype(str).str.startswith('01.')].copy()
+    q1['data'] = pd.to_numeric(q1['data'], errors='coerce').fillna(0)
+    
+    # Pivot expenditures
+    expenditures = q1.pivot_table(
+        index=['ipeds_unitid', 'year'], 
+        columns='questionnaire_no', 
+        values='data', 
+        aggfunc='sum'
+    ).reset_index()
+    
+    exp_rename_map = {
+        '01.a': 'rd_federal',
+        '01.b': 'rd_state',
+        '01.c': 'rd_business',
+        '01.d': 'rd_nonprofit',
+        '01.e': 'rd_institution',
+        '01.f': 'rd_other',
+        '01.g': 'rd_total'
+    }
+    expenditures = expenditures.rename(columns=exp_rename_map)
+    # Fill missing columns if some categories had no data
+    for col in exp_rename_map.values():
+        if col not in expenditures.columns:
+            expenditures[col] = 0.0
+            
+    # Personnel
+    q15 = df_herd[df_herd['questionnaire_no'].astype(str) == '15'].copy()
+    q15['data'] = pd.to_numeric(q15['data'], errors='coerce').fillna(0)
+    
+    personnel = q15.pivot_table(
+        index=['ipeds_unitid', 'year'],
+        columns='column',
+        values='data',
+        aggfunc='sum'
+    ).reset_index()
+    
+    pers_rename_map = {
+        'Researchers': 'personnel_researchers',
+        'Support Staff': 'personnel_support',
+        'Technicians': 'personnel_technicians',
+        'Total': 'personnel_total'
+    }
+    personnel = personnel.rename(columns=pers_rename_map)
+    for col in pers_rename_map.values():
+        if col not in personnel.columns:
+            personnel[col] = 0.0
+            
+    # Merge expenditures and personnel
+    final_df = expenditures.merge(personnel, on=['ipeds_unitid', 'year'], how='outer').fillna(0)
+    final_df['ipeds_unitid'] = final_df['ipeds_unitid'].astype(int)
+    
+    # Merge with peer flags
+    final_df = final_df.merge(df_meta, left_on='ipeds_unitid', right_on='UNITID', how='inner')
+    final_df = final_df.drop(columns=['ipeds_unitid'])
+    
+    # Save
+    dest_path = os.path.join(APP_DIR, "nsf_herd_metrics.parquet")
+    final_df.to_parquet(dest_path, index=False)
+    print(f"   Saved: nsf_herd_metrics.parquet ({len(final_df)} rows)")
+
+
 def main():
     os.makedirs(APP_DIR, exist_ok=True)
     print("Starting App Data compilation pipeline...")
@@ -484,6 +595,7 @@ def main():
     compile_spending()
     compile_portfolio_shape()
     compile_nih_grants()
+    compile_nsf_herd()
     print("🏁 App Data compilation complete!")
 
 
