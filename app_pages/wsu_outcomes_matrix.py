@@ -1,4 +1,5 @@
 import streamlit as st
+st.stop() # Prevents page from loading while still appearing in project structure
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
