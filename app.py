@@ -33,19 +33,19 @@ pg = st.navigation({
         spending_portfolio_shape,
         cip_market_share,
         nih_grants,
-        nsf_herd,
-    ],
-    "Program Portfolio": [
-        portfolio_methods,
-        portfolio_map,
-        portfolio_value,
-        portfolio_relative,
-        portfolio_demand,
-        portfolio_equity,
-        portfolio_profile,
-        portfolio_crosswalk,
-        portfolio_exemptions
+        nsf_herd
     ]
+    # "Program Portfolio": [
+    #     portfolio_methods,
+    #     portfolio_map,
+    #     portfolio_value,
+    #     portfolio_relative,
+    #     portfolio_demand,
+    #     portfolio_equity,
+    #     portfolio_profile,
+    #     portfolio_crosswalk,
+    #     portfolio_exemptions
+    # ]
 })
 
 pg.run()
