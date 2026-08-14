@@ -56,6 +56,10 @@ def show():
             st.subheader("Qualitative Input")
             st.text_area("Department Chair Comments / Strategic Value Narrative", height=150)
             
+            st.subheader("Curriculum Reference Data")
+            st.markdown("Raw attributes loaded from the Active Curriculum source for this program:")
+            st.dataframe(pd.DataFrame(prog_dim).T, width="stretch")
+            
             st.button("Print Profile Card")
 
     except Exception as e:

@@ -25,6 +25,11 @@ def show():
         - **State Earnings Gap**: WSU program median earnings minus the median earnings of identical programs at other Michigan public universities.
         - **Peer Earnings Gap**: WSU program median earnings minus the median earnings of identical programs at predefined peer institutions.
         - **National Earnings Gap**: WSU program median earnings minus the national median for the CIP code.
+        
+        **Performance Flags (Legend):**
+        - **Above Material** (WSU Green): The program's earnings exceed the benchmark by more than the configured material threshold (e.g., $2,000).
+        - **At Parity** (Grey): The program's earnings are within the material threshold (±$2,000) of the benchmark.
+        - **Below Material** (WSU Gold): The program's earnings trail the benchmark by more than the configured material threshold (e.g., $2,000).
         """)
         
         st.markdown("### State Earnings Gap")

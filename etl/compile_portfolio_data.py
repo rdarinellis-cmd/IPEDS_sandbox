@@ -34,19 +34,25 @@ def compile_dim_program(config):
     # Ensure CIP is a 6-digit zero-padded string
     curr['CIP'] = curr['CIP'].fillna(0).astype(int).astype(str).str.zfill(6)
     
-    # Collapse Honors and Co-Majors
-    # Rule: If 'Honors' or 'Co-Major' in Major Desc, we drop them from the universe here
-    # (In a full ETL, we would remap their enrollments/completions to the base major)
+    # Collapse Honors, Co-Majors, and Online options
+    # Rule: Map them to the base program and aggregate (or just drop the duplicates here since we only need the dimension)
     is_honors = curr['Major Desc'].str.contains('Honors', case=False, na=False)
     is_comajor = curr['Major Desc'].str.contains('Co-Major', case=False, na=False)
+    is_online = curr['Major Desc'].str.contains('Online', case=False, na=False)
     
-    curr = curr[~(is_honors | is_comajor)].copy()
+    curr['is_variant'] = is_honors | is_comajor | is_online
+    curr = curr.sort_values('is_variant') # Base programs first
     
-    # Create program_key
-    curr['program_key'] = curr['Program'].astype(str) + "_" + curr['Major'].astype(str) + "_" + curr['CPLR Level'].astype(str)
+    curr['Major Desc'] = curr['Major Desc'].str.replace(r'\s*-?\s*Online\b', '', regex=True, case=False)
+    curr['Major Desc'] = curr['Major Desc'].str.replace(r'\s*Honors\b', '', regex=True, case=False)
+    curr['Major Desc'] = curr['Major Desc'].str.replace(r'\s*\(Co-Major\)', '', regex=True, case=False)
+    curr['Major Desc'] = curr['Major Desc'].str.strip()
     
-    # Ensure program_key is unique
-    curr = curr.drop_duplicates(subset=['program_key'])
+    # Create program_key using the cleaned Major Desc
+    curr['program_key'] = curr['Program'].astype(str) + "_" + curr['Major Desc'].astype(str).str.upper().str.replace(' ', '_') + "_" + curr['CPLR Level'].astype(str)
+    
+    # Ensure program_key is unique, keeping the base program
+    curr = curr.drop_duplicates(subset=['program_key']).drop(columns=['is_variant'])
     
     # Coerce problematic columns
     curr['Min_Credits'] = pd.to_numeric(curr['Min_Credits'], errors='coerce')
@@ -117,7 +123,7 @@ def compile_screen_marts(dim_program, config):
     dem['regional_openings'] = np.random.randint(10, 500, n_progs)
     dem['state_completion_share'] = np.random.uniform(0.01, 0.50, n_progs)
     dem['in_state_retention'] = np.random.uniform(0.40, 0.95, n_progs)
-    dem['duplication_cluster'] = np.random.choice(['Cluster A', 'Cluster B', 'Unique'], n_progs)
+    dem['duplication_cluster'] = np.random.choice(['Monopoly', 'Saturated', 'Niche'], n_progs)
     dem['n'] = np.random.randint(5, 100, n_progs)
     dem['suppressed'] = dem['n'] < config['evidence']['min_cohort_n']
     dem.to_parquet(os.path.join(APP_DIR, "portfolio_demand_position.parquet"), engine='pyarrow', compression='snappy')
