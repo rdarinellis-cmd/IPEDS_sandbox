@@ -8,28 +8,38 @@ This repository contains tools for analyzing Higher Education data from the Inte
 
 ```plaintext
 .
-├── .venv/                     # Python virtual environment (ignored by Git)
-├── app.py                     # Main Streamlit application entrypoint & routing
-├── app_pages/                 # Streamlit dashboard pages
-│   ├── overview.py            # Dashboard landing page & architecture explanation
-│   ├── spending_analyzer.py   # Spending analyzer dashboard
-│   └── cip_market_share.py    # Degrees awarded / CIP market share dashboard
-├── etl/                       # Raw data ingestion pipeline orchestrators
-│   └── ingest_master.py       # Fetches public datasets and converts them to Snappy-Parquet
-├── scripts/                   # Local pipeline and processing scripts
-│   └── build_pipeline.py      # Cleans and merges Pathfinder, SOC, and Parquet data
-├── data/                      # Local data directory (ignored by Git)
-│   └── raw/                   # Raw data lake Parquet files
-│       ├── crosswalks/        # Mappings (NCES CIP-SOC Crosswalk)
-│       ├── scorecard/         # College Scorecard Field of Study tables
-│       ├── ipeds/             # IPEDS raw tables
-│       └── labor_mi/          # Michigan labor projections and wages
-├── dictionaries/              # Variable definitions and Excel dictionaries
-├── requirements.txt           # Python package dependencies
-├── clock_in.sh                # Script to sync main branch and set up the .venv environment
-├── clock_out.sh               # Script to stage, commit, and push work to GitHub
-├── run_dashboard.sh           # Utility script to launch the Streamlit app
-└── rebuild_env.sh             # Utility script to clean and recreate the Python virtual environment
+├── .venv/                  # Hidden: Isolated local Python packages (Never push to Git)
+├── .gitignore              # Controls what files are blocked from GitHub
+├── ARCHITECTURE.md         # This technical specification blueprint
+├── README.md               # User guide and workspace configuration steps
+├── app.py                  # Streamlit entry point (Navigation & Main Layout)
+├── requirements.txt        # Python package dependencies list
+├── clock_in.sh             # Activates virtualenv, pulls main branch, updates pip packages
+├── clock_out.sh            # Stages changes, prompts for commit message, pushes to GitHub
+├── rebuild_env.sh          # Utility script to clean and reconstruct the .venv environment
+├── run_dashboard.sh        # Utility script to boot Streamlit using the .venv Python path
+├── app_pages/              # Individual Streamlit dashboard views
+│   ├── overview.py         # App landing page & architecture explanation
+│   ├── cip_market_share.py # Degrees awarded & CIP market share view
+│   ├── nih_grants.py       # NIH Grants analysis page
+│   ├── nsf_herd.py         # NSF HERD analysis page
+│   ├── spending_analyzer.py# Cost/spending analysis dashboard
+│   ├── spending_portfolio_shape.py # Expenditure Shape benchmarking page
+│   └── kettering_outcomes.py # Kettering Outcomes view (development branch)
+├── etl/                    # Raw data ingestion & compilation pipeline
+│   ├── compile_app_data.py # Local aggregator creating local application Parquet databases
+│   ├── ingest_master.py    # Fetches public datasets and converts them to Snappy-Parquet
+│   └── ingest_nih_reporter.py # Fetches and structures NIH RePORTER data
+├── scripts/                # Data cleaning and pipeline operations
+│   └── build_pipeline.py   # Local ETL pipeline merging Pathfinder, SOC, and cached Parquet data
+├── data/                   # Data directory (Parquet caches)
+│   ├── app/                # Compiled application databases (Parquet files read by dashboard)
+│   └── raw/                # Local raw Parquet data lake (Ignored by Git)
+│       ├── crosswalks/     # Mappings (e.g. NCES CIP-SOC crosswalk)
+│       ├── scorecard/      # College Scorecard Field of Study tables
+│       ├── ipeds/          # IPEDS raw tables
+│       └── labor_mi/       # Michigan labor projections and wage data
+└── dictionaries/           # Variable definition translation tables (*.xlsx, *.csv)
 ```
 
 > [!NOTE]

@@ -88,6 +88,43 @@ def read_parquet_upper(file_path, cols):
     return df
 
 
+def get_wsu_college_mapping():
+    """Reads the WSU Curricula Catalog and builds a dict mapping CIP to comma-separated WSU colleges."""
+    catalog_path = "data/raw/crosswalks/Curricula Catalog with CPLR-1.xlsx"
+    if not os.path.exists(catalog_path):
+        print(f"   ⚠️ Warning: Curricula Catalog not found at {catalog_path}.")
+        return {}
+    
+    try:
+        df = pd.read_excel(catalog_path)
+        df = df.dropna(subset=['CIP', 'College'])
+        
+        def clean_curric_cip(val):
+            val_str = str(val).strip()
+            if '.' in val_str:
+                try:
+                    val_float = float(val_str)
+                    val_int = int(val_float)
+                    if val_float == val_int:
+                        val_str = str(val_int)
+                except ValueError:
+                    pass
+            return normalize_cip(val_str)
+            
+        df['cip_clean'] = df['CIP'].map(clean_curric_cip)
+        df = df.dropna(subset=['cip_clean'])
+        
+        # Group by CIP and collect colleges as comma-separated unique values
+        mapping = df.groupby('cip_clean')['College'].apply(
+            lambda x: ", ".join(sorted(list(set(str(col).strip() for col in x if pd.notna(col)))))
+        ).to_dict()
+        
+        return mapping
+    except Exception as e:
+        print(f"   ⚠️ Error reading WSU Curricula Catalog: {e}")
+        return {}
+
+
 def compile_completions():
     """Extract completions and directories for Michigan public universities, Urban Peers, and Public R1s."""
     print("📦 Compiling completions datasets...")
@@ -171,6 +208,16 @@ def compile_completions():
             how='inner'
         )
         all_comp = all_comp.rename(columns={'INSTNM': 'institution', 'UNITID': 'unitid'})
+        
+        # Get WSU college mapping and assign it
+        wsu_mapping = get_wsu_college_mapping()
+        
+        def map_college(row):
+            if row['institution'] == 'Wayne State University':
+                return wsu_mapping.get(row['cip_code'], None)
+            return None
+            
+        all_comp['wsu_college'] = all_comp.apply(map_college, axis=1)
         
         comp_dest = os.path.join(APP_DIR, "completions_benchmark.parquet")
         all_comp.to_parquet(comp_dest, index=False)

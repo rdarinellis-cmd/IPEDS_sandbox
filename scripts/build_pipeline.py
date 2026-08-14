@@ -255,6 +255,41 @@ def main():
         df_final['IPEDS_Total_Degrees'] = 0
         df_final['is_underrepresented'] = False
 
+    print("Integrating WSU College mappings...")
+    try:
+        catalog_path = 'data/raw/crosswalks/Curricula Catalog with CPLR-1.xlsx'
+        if os.path.exists(catalog_path):
+            df_curric = pd.read_excel(catalog_path)
+            df_curric = df_curric.dropna(subset=['CIP', 'College'])
+            
+            def clean_curric_cip(val):
+                val_str = str(val).strip()
+                if '.' in val_str:
+                    try:
+                        val_float = float(val_str)
+                        val_int = int(val_float)
+                        if val_float == val_int:
+                            val_str = str(val_int)
+                    except ValueError:
+                        pass
+                return normalize_cip(val_str)
+                
+            df_curric['cip_clean'] = df_curric['CIP'].map(clean_curric_cip)
+            df_curric = df_curric.dropna(subset=['cip_clean'])
+            
+            wsu_mapping = df_curric.groupby('cip_clean')['College'].apply(
+                lambda x: ", ".join(sorted(list(set(str(col).strip() for col in x if pd.notna(col)))))
+            ).to_dict()
+            
+            df_final['College'] = df_final['CIP Code'].map(wsu_mapping)
+            print("   WSU College mappings assigned successfully.")
+        else:
+            print("Warning: Curricula Catalog not found. College column will be empty.")
+            df_final['College'] = None
+    except Exception as e:
+        print(f"Warning: Failed to integrate Curricula Catalog: {e}")
+        df_final['College'] = None
+
     print("Saving to Parquet...")
     os.makedirs('data/app', exist_ok=True)
     # Save outputs

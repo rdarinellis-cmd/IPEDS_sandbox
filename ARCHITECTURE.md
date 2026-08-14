@@ -34,12 +34,19 @@ IPEDS_sandbox/
 ├── app_pages/              # Individual Streamlit dashboard views
 │   ├── overview.py         # App landing page & architecture explanation
 │   ├── cip_market_share.py # Degrees awarded & CIP market share view
-│   └── spending_analyzer.py# Cost/spending analysis dashboard (development branch)
-├── etl/                    # Raw data ingestion pipeline orchestrators
-│   └── ingest_master.py    # Fetches public datasets and converts them to Snappy-Parquet
+│   ├── nih_grants.py       # NIH Grants analysis page
+│   ├── nsf_herd.py         # NSF HERD analysis page
+│   ├── spending_analyzer.py# Cost/spending analysis dashboard
+│   ├── spending_portfolio_shape.py # Expenditure Shape benchmarking page
+│   └── kettering_outcomes.py # Kettering Outcomes view (development branch)
+├── etl/                    # Raw data ingestion & compilation pipeline
+│   ├── compile_app_data.py # Local aggregator creating local application Parquet databases
+│   ├── ingest_master.py    # Fetches public datasets and converts them to Snappy-Parquet
+│   └── ingest_nih_reporter.py # Fetches and structures NIH RePORTER data
 ├── scripts/                # Data cleaning and pipeline operations
 │   └── build_pipeline.py   # Local ETL pipeline merging Pathfinder, SOC, and cached Parquet data
 ├── data/                   # Data directory (Parquet caches)
+│   ├── app/                # Compiled application databases (Parquet files read by dashboard)
 │   └── raw/                # Local raw Parquet data lake (Ignored by Git)
 │       ├── crosswalks/     # Mappings (e.g. NCES CIP-SOC crosswalk)
 │       ├── scorecard/      # College Scorecard Field of Study tables
@@ -76,15 +83,19 @@ Production deployments are fully automated. When you push your code to the `main
 2. **Serverless Deployment:** Streamlit automatically builds and hosts the dashboard using [requirements.txt](file:///Users/ac7940/Antigravity/IPEDS_sandbox/requirements.txt) at a public `*.streamlit.app` URL.
 3. **Authentication:** No cloud authorization is required; the application loads pre-compiled, snappy Parquet files directly from local storage.
 
-## 🗺️ 5. Future Project Roadmap
+## 🗺️ 5. Completed Phases & Roadmap
 
-### Phase 1: Interactive Data Lookups (Current Goal)
-- Integrate the variable lookup tables in [dictionaries/](file:///Users/ac7940/Antigravity/IPEDS_sandbox/dictionaries) directly into the interface.
-- Add human-readable dropdown selections (e.g. displaying "Public, 4-year" instead of the raw database flag `CONTROL = 1`).
+### Phase 1: Interactive Data Lookups (Completed)
+- Integrated variable lookup tables in [dictionaries/](file:///Users/ac7940/Antigravity/IPEDS_sandbox/dictionaries) into the metadata search interface.
+- Developed dynamic search functionality for full IPEDS database schemas.
 
-### Phase 2: Performance Tuning (DuckDB Upgrade)
-- If cross-table joins or grouping operations become slow, integrate `duckdb` into the project requirements.
-- DuckDB executes localized serverless SQL queries straight inside the application's memory without requiring external databases or server processes.
+### Phase 2: Performance Tuning & DuckDB (Completed)
+- Integrated `duckdb` into the dashboard to support high-performance local SQL querying of compiled Parquet tables directly in memory.
+- Dramatically accelerated cross-table joins, filters, and dynamic grouping.
+
+### Phase 3: Brand Identity & ADA Accessibility (In Progress)
+- Fully implement and audit Wayne State University Brand Colors (`#0C5449` and `#F2A900`) and WCAG 2.1 AA contrast constraints across all charts and pages.
+- Ensure screen reader support, descriptive captions, and keyboard accessibility for all dashboard controls.
 
 ## 🎨 6. Dashboard Design & Style Guidelines
 All dashboards in this project must adhere to the following styling and layout specifications:
@@ -103,7 +114,7 @@ All dashboard pages, widgets, and data visualizations must strictly adhere to th
 
 ### A. Wayne State Brand Color System
 * **Primary WSU Green:** `#0C5449` (PMS 561c) or `#0B4C43` (Digital Web Header). Used for primary buttons, active tabs, header bands, and key metrics.
-* **Primary WSU Gold:** `#FFCC33` (PMS 1225c). Used exclusively for accents, callout borders, or chart highlights.
+* **Primary WSU Gold:** `#F2A900` (PMS 1225c). Used exclusively for accents, callout borders, or chart highlights.
 * **Neutral Backgrounds:** White (`#FFFFFF`) or Light Gray (`#F8F9FA`).
 * **Dark Body Text:** Charcoal/Black (`#111111` or `#222222`).
 * **Forbidden Color Combinations:** 

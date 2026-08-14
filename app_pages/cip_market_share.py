@@ -119,6 +119,49 @@ else:
 if selected_schools:
     df_filtered = df_filtered[df_filtered['institution'].isin(selected_schools)]
 
+# WSU School/College selector
+COLLEGE_NAMES = {
+    'BA': 'Business (Mike Ilitch School of Business)',
+    'ED': 'Education (College of Education)',
+    'EN': 'Engineering (College of Engineering)',
+    'FA': 'CFPCA (Fine, Performing & Communication Arts)',
+    'GS': 'Graduate School',
+    'IS': 'Information Sciences (School of Information Sciences)',
+    'LS': 'CLAS (Liberal Arts and Sciences)',
+    'LW': 'Law (Law School)',
+    'MD': 'Medicine (School of Medicine)',
+    'NU': 'Nursing (College of Nursing)',
+    'PA': 'EACPHS (Pharmacy & Health Sciences)',
+    'SW': 'Social Work (School of Social Work)'
+}
+
+colleges_in_data = set()
+if 'wsu_college' in df_all.columns:
+    for cell in df_all['wsu_college'].dropna().unique():
+        for code in str(cell).split(','):
+            c_clean = code.strip()
+            if c_clean:
+                colleges_in_data.add(c_clean)
+
+sorted_colleges = sorted(list(colleges_in_data))
+college_options = ['All Colleges'] + sorted_colleges
+
+selected_college_code = st.sidebar.selectbox(
+    "WSU School/College",
+    options=college_options,
+    format_func=lambda x: COLLEGE_NAMES.get(x, x) if x != 'All Colleges' else 'All Colleges (No Filter)'
+)
+
+if selected_college_code != 'All Colleges':
+    # Find all CIP codes that map to this WSU college
+    wsu_rows = df_all[(df_all['institution'] == 'Wayne State University') & (df_all['wsu_college'].notna())]
+    target_cips_for_college = wsu_rows[wsu_rows['wsu_college'].apply(
+        lambda val: any(c.strip() == selected_college_code for c in str(val).split(',') if c.strip())
+    )]['cip_code'].unique()
+    
+    # Filter df_filtered to only include these CIP codes
+    df_filtered = df_filtered[df_filtered['cip_code'].isin(target_cips_for_college)]
+
 st.sidebar.subheader("CIP Code Selection")
 st.sidebar.markdown("Select 2-digit CIP Families, then optionally filter to specific 6-digit codes. If no 6-digit codes are selected, the entire family will be aggregated.")
 
