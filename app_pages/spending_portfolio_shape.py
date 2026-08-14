@@ -394,7 +394,7 @@ else:
                 "YEAR": "Year",
                 "INSTNM": "Institution",
                 "REPORTING": "Standard",
-                "CORE_EXPENSES": st.column_config.NumberColumn("Core Expenses ($)", format="$%,.0f"),
+                "CORE_EXPENSES": st.column_config.NumberColumn("Core Expenses ($)", format="$%,.2f"),
                 "Instruction": st.column_config.NumberColumn("Instruction (%)", format="%.1f%%"),
                 "Research": st.column_config.NumberColumn("Research (%)", format="%.1f%%"),
                 "Public Service": st.column_config.NumberColumn("Public Service (%)", format="%.1f%%"),

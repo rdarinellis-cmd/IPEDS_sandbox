@@ -142,6 +142,14 @@ st.markdown("""
         <p class="card-desc">Track institutional R&D expenditures and research personnel. Benchmark total research spending against peer R1s and regional publics using the official HERD survey.</p>
         <span class="source-tag">NSF HERD Survey</span>
     </div>
+    <div class="dashboard-card">
+        <div class="card-header-flex">
+            <div class="card-icon">🎓</div>
+            <h4 class="card-title">WSU Outcomes Matrix</h4>
+        </div>
+        <p class="card-desc">Evaluate WSU's Classification of Instructional Programs (CIP) post-graduation outcomes against Michigan statewide labor market averages using a strategic BCG Matrix.</p>
+        <span class="source-tag">College Scorecard & MI LMI</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 

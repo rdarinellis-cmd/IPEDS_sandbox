@@ -339,7 +339,7 @@ with tab_summary:
             fontSize=9,
             fontWeight='bold'
         ).encode(
-            text=alt.Text('Spend per FTE:Q', format='$,.0f')
+            text=alt.Text('Spend per FTE:Q', format='$,.2f')
         )
         
         # Layer them first, then draw as a grouped bar chart
@@ -388,9 +388,9 @@ with tab_summary:
                 "Carnegie": "Carnegie Classification",
                 "Locale": "Locale",
                 "fte_enrollment": st.column_config.NumberColumn("FTE Students", format="%d"),
-                "spend_instruction": st.column_config.NumberColumn("Instruction Spend ($)", format="$%,d"),
-                "spend_academic_support": st.column_config.NumberColumn("Academic Support Spend ($)", format="$%,d"),
-                "spend_student_services": st.column_config.NumberColumn("Student Services Spend ($)", format="$%,d"),
+                "spend_instruction": st.column_config.NumberColumn("Instruction Spend ($)", format="$%,.2f"),
+                "spend_academic_support": st.column_config.NumberColumn("Academic Support Spend ($)", format="$%,.2f"),
+                "spend_student_services": st.column_config.NumberColumn("Student Services Spend ($)", format="$%,.2f"),
                 "Instruction per FTE": st.column_config.NumberColumn("Instruction per FTE ($)", format="$%,.2f"),
                 "Academic Support per FTE": st.column_config.NumberColumn("Academic Support per FTE ($)", format="$%,.2f"),
                 "Student Services per FTE": st.column_config.NumberColumn("Student Services per FTE ($)", format="$%,.2f"),

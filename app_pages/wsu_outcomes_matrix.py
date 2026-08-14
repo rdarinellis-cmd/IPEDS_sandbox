@@ -132,8 +132,10 @@ st.sidebar.markdown("""
   - WSU Employment outcomes sourced from the State of Michigan **Pathfinder** system.
   - Institutional completions sourced from NCES [IPEDS Completions Survey](https://nces.ed.gov/ipeds/).
 - **Metric Definitions:** 
-  - displays employment rates and median salaries 1-year and 5-years post-graduation for Wayne State alumni working in Michigan.
+  - **Employment Rate:** Percentage of graduates employed in Michigan 1 or 5 years post-graduation.
+  - **Median Salary:** Median salary of WSU alumni working in Michigan 1 or 5 years post-graduation.
   - **Wage Premium:** WSU alumni median salary minus the Michigan average entry-level wage for the mapped occupations.
+  - **Quadrant:** Performance classification based on employment rate and wage premium relative to statewide averages.
 """)
 
 if search_term:
@@ -187,10 +189,10 @@ else:
             "CIP Code": True,
             "Award": True,
             size_col: ":,.0f",
-            wage_col: ":$,.0f",
-            "State_Annual_Entry_Wage": ":$,.0f",
+            wage_col: ":$,.2f",
+            "State_Annual_Entry_Wage": ":$,.2f",
             emp_col: ":.1%",
-            y_col: ":$,.0f" if metric_type == "Absolute ($)" else ":.1%",
+            y_col: ":$,.2f" if metric_type == "Absolute ($)" else ":.1%",
             quad_col: False
         },
         labels={
@@ -205,7 +207,7 @@ else:
     fig.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="Break-even Premium")
     
     if metric_type == "Absolute ($)":
-        fig.update_layout(yaxis_tickformat="$,.0f")
+        fig.update_layout(yaxis_tickformat="$,.2f")
     else:
         fig.update_layout(yaxis_tickformat=".1%")
         
@@ -273,9 +275,9 @@ if not filtered_df.empty:
     
     st.dataframe(display_df[display_cols].style.apply(highlight_underrepresented, axis=1).format({
         emp_col: "{:.1%}",
-        wage_col: "${:,.0f}",
-        'State_Annual_Entry_Wage': "${:,.0f}",
-        prem_doll_col: "${:,.0f}",
+        wage_col: "${:,.2f}",
+        'State_Annual_Entry_Wage': "${:,.2f}",
+        prem_doll_col: "${:,.2f}",
         prem_pct_col: "{:.1%}",
         size_col: "{:,.0f}",
         'IPEDS_Total_Degrees': "{:,.0f}"
@@ -302,15 +304,15 @@ if not filtered_df.empty:
             st.markdown(f"**WSU Outcomes for {selected_cip_display}**")
             st.dataframe(wsu_actuals[['Award', size_col, emp_col, wage_col]].style.format({
                 emp_col: "{:.1%}",
-                wage_col: "${:,.0f}",
+                wage_col: "${:,.2f}",
                 size_col: "{:,.0f}"
             }))
         
         st.markdown("**Underlying Target Occupations (SOC) in Michigan**")
         soc_drilldown = available_socs[available_socs['CIP2020Code'] == selected_cip_code]
         st.dataframe(soc_drilldown[['SOC2018Code', 'Occupation', 'State_Annual_Entry_Wage', 'State_Annual_Median_Wage']].style.format({
-            'State_Annual_Entry_Wage': "${:,.0f}",
-            'State_Annual_Median_Wage': "${:,.0f}"
+            'State_Annual_Entry_Wage': "${:,.2f}",
+            'State_Annual_Median_Wage': "${:,.2f}"
         }), width="stretch")
     else:
         st.info("No SOC mapping data available for the selected filters.")

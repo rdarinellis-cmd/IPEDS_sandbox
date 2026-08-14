@@ -176,7 +176,7 @@ with col1:
         opacity_cond = alt.condition(click_selection, alt.value(1.0), alt.value(0.3))
     
     funding_chart = alt.Chart(df_funding).mark_bar().encode(
-        x=alt.X('Funding:Q', title="Total Funding ($)", axis=alt.Axis(format='$,.0f')),
+        x=alt.X('Funding:Q', title="Total Funding ($)", axis=alt.Axis(format='$,.2f')),
         y=alt.Y('institution:N', title=None, sort='-x'),
         color=alt.Color(
             'Chart Color:N', 
@@ -190,7 +190,7 @@ with col1:
         tooltip=[
             alt.Tooltip('institution', title="Institution"),
             alt.Tooltip('Grant Type', title="Type"),
-            alt.Tooltip('Funding:Q', title="Funding", format='$,.0f')
+            alt.Tooltip('Funding:Q', title="Funding", format='$,.2f')
         ]
     ).properties(height=400).add_params(click_selection)
     
@@ -245,8 +245,8 @@ table_event = st.dataframe(
     selection_mode="multi-row",
     key="summary_table",
     column_config={
-        "Training Funding": st.column_config.NumberColumn(format="$%.0f"),
-        "Center Funding": st.column_config.NumberColumn(format="$%.0f")
+        "Training Funding": st.column_config.NumberColumn(format="$%.2f"),
+        "Center Funding": st.column_config.NumberColumn(format="$%.2f")
     },
     width="stretch"
 )
@@ -292,7 +292,7 @@ if not df_itemized_display.empty:
         display_itemized,
         hide_index=True,
         column_config={
-            "Award Amount": st.column_config.NumberColumn(format="$%.0f"),
+            "Award Amount": st.column_config.NumberColumn(format="$%.2f"),
             "FY": st.column_config.NumberColumn(format="%d"),
             "Budget Start": st.column_config.DateColumn(format="YYYY-MM-DD"),
             "Budget End": st.column_config.DateColumn(format="YYYY-MM-DD"),
