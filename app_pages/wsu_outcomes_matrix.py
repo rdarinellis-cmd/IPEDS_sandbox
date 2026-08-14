@@ -25,8 +25,15 @@ def load_data():
 
 df, df_soc = load_data()
 
-st.title("DRAFT WSU Post-Graduation Outcomes Matrix DRAFT")
-st.markdown("Evaluate WSU's Classification of Instructional Programs (CIP) against Michigan statewide labor market averages.")
+st.title("WSU Post-Graduation Outcomes Matrix")
+st.markdown("""
+> **Note: Economic Impact Communications Artifact**  
+> This matrix evaluates Wayne State's Classification of Instructional Programs (CIP) against Michigan statewide labor market averages. It is designed to illustrate broad economic impact and post-graduation trajectories. **This tool is not an input to academic program portfolio decisions**, which rely on the dedicated Program Portfolio Analysis module.
+
+**Metric Definitions:**
+- **Wage Premium:** WSU alumni median salary minus the Michigan average entry-level wage for mapped occupations.
+- **Employment Rate:** Percentage of graduates employed in Michigan 1 or 5 years post-graduation.
+""")
 
 # --- Sidebar Controls ---
 st.sidebar.header("Filter Settings")

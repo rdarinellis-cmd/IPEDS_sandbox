@@ -33,4 +33,10 @@ Every dashboard page containing filters must organize its layout as follows:
 Always represent Wayne State University distinctively using **WSU Green** (`#0C5449`) and **WSU Gold** (`#F2A900`) across all charts. 
 All peer institutions or peer medians must be represented uniformly and distinctly from WSU using neutral styling (e.g., Black `#000000` and Grey `#737373` or `#cccccc`), ensuring Wayne State immediately stands out in all visual comparisons.
 
+### 6. Charting Library Consistency (Altair)
+All data visualizations **MUST** use **Altair**. Do not use Plotly, Matplotlib, or other charting libraries. This ensures visual consistency, accessible rendering, and unified styling across all pages.
+
+### 7. Streamlit API Deprecations
+When creating dataframes, charts, or other elements that span the full container width, **never** use the deprecated `use_container_width=True` argument. Always use `width="stretch"` (or `width="content"` if it should not span the container) as per the latest Streamlit API standards.
+
 *Note: These instructions are loaded as workspace rules and must be adhered to by all developer agents working on this project.*

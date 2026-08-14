@@ -209,7 +209,7 @@ if not df_traj.empty:
         tooltip=['YEAR', 'Metric', alt.Tooltip('IndexValue:Q', title="Peer Median Index", format='.1f')]
     )
     
-    st.altair_chart((peer_lines + wsu_lines).properties(height=500, title="WSU (Solid/Points) vs Peer Median (Faded Dashed)"), use_container_width=True)
+    st.altair_chart((peer_lines + wsu_lines).properties(height=500, title="WSU (Solid/Points) vs Peer Median (Faded Dashed)"), width="stretch")
     
     with st.expander("♿ Accessible Data Table - Trajectory"):
         st.dataframe(df_traj_wsu.pivot(index='YEAR', columns='Metric', values='IndexValue').style.format("{:.1f}"))
@@ -233,7 +233,7 @@ with col1:
         strokeDash=alt.condition(alt.datum.Group == 'Peer Median', alt.value([4,4]), alt.value([0])),
         tooltip=['YEAR', 'Group', alt.Tooltip('discount_rate:Q', format='.1%')]
     ).properties(height=350)
-    st.altair_chart(dr_chart, use_container_width=True)
+    st.altair_chart(dr_chart, width="stretch")
 
 with col2:
     st.subheader(f"Net Tuition & State Approp per FTE ({deflator_choice})")
@@ -260,7 +260,7 @@ with col2:
         
         rule = alt.Chart(pd.DataFrame({'YEAR': [2021]})).mark_rule(color='#d9534f', strokeDash=[2,2]).encode(x='YEAR:O')
         
-        st.altair_chart((ts_chart + rule + heerf_annotation), use_container_width=True)
+        st.altair_chart((ts_chart + rule + heerf_annotation), width="stretch")
 
 # --- SECTION 3: EXPENDITURE SHAPE ---
 st.header("Section 3: Expenditure Shape")
@@ -315,7 +315,7 @@ with c3:
             color=alt.Color('Metric:N', scale=alt.Scale(range=['#0C5449', '#F2A900'])),
             tooltip=['YEAR', 'Metric', alt.Tooltip('Ratio:Q', format='.2f')]
         ).properties(height=350)
-        st.altair_chart(iy_chart, use_container_width=True)
+        st.altair_chart(iy_chart, width="stretch")
         
 with c4:
     st.subheader("6-Year Graduation Rate (Pell/Non-Pell)")
@@ -329,7 +329,7 @@ with c4:
             color=alt.Color('Cohort:N', scale=alt.Scale(range=['#0C5449', '#737373'])),
             tooltip=['YEAR', 'Cohort', alt.Tooltip('Rate:Q', format='.1%')]
         ).properties(height=350)
-        st.altair_chart(gr_chart, use_container_width=True)
+        st.altair_chart(gr_chart, width="stretch")
         st.caption("Note: 6-Year GR tracks Full-Time, First-Time students only.")
 
 st.subheader("Outcome Measures (8-Year Completion)")
@@ -356,5 +356,5 @@ with st.expander("⚠️ Important Data Notes & Discontinuities"):
     st.markdown("""
     - **FY2021 HEERF:** Federal pandemic relief funds landed in grants/contracts and may artificially depress net tuition dependence while temporarily inflating expense lines.
     - **2020-21 Enrollment Shock:** Be cautious interpreting growth from 2020 or 2021 index bases, as this represents pandemic recovery rather than structural growth.
-    - **GASB vs FASB:** Some peer institutions (like Kettering) may report under FASB, making functional expense shares incompatible with GASB reporting standards. The core expense adjustment accounts for major differences but does not perfectly align O&M or pensions.
+    - **GASB vs FASB:** Some institutions report under FASB, making functional expense shares incompatible with GASB reporting standards. The core expense adjustment accounts for major differences but does not perfectly align O&M or pensions.
     """)

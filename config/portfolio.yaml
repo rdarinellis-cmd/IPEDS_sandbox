@@ -1,0 +1,36 @@
+# Program Portfolio Analysis Configuration
+# All analytical parameters and thresholds are defined here to ensure transparency.
+
+evidence:
+  min_cohort_n: 10
+  min_material_gap_usd: 2000
+  min_material_gap_pct: 0.05
+  pooling_years: 5
+
+benchmarks:
+  hs_only_earnings: 35000  # Default HS-only earnings baseline for undergrad counterfactual
+  prior_credential_median_multiplier: 1.15  # Graduate programs should exceed undergrad earnings
+
+thresholds:
+  debt_to_earnings:
+    annual_warning: 0.08
+    discretionary_warning: 0.20
+  completion_rate_floor: 0.60
+  soc_similarity_duplication: 0.85
+
+program_scope:
+  exclude_cplr_levels:
+    - 99
+  collapse_rules:
+    - rule: "Honors"
+      action: "collapse_into_base"
+    - rule: "Co-Major"
+      action: "collapse_into_base"
+
+exemptions:
+  - program_key: "Medicine_MD"
+    rationale: "Residency structure delays earnings realization beyond standard windows."
+    declared_date: "2026-08-14"
+  - program_key: "Music_Performance_BFA"
+    rationale: "Strategic artistic mission priority; non-monetary societal value."
+    declared_date: "2026-08-14"

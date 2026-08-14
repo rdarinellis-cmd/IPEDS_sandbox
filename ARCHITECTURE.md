@@ -93,12 +93,18 @@ Production deployments are fully automated. When you push your code to the `main
 - Integrated `duckdb` into the dashboard to support high-performance local SQL querying of compiled Parquet tables directly in memory.
 - Dramatically accelerated cross-table joins, filters, and dynamic grouping.
 
-### Phase 3: Brand Identity & ADA Accessibility (In Progress)
+### Phase 3: Brand Identity & ADA Accessibility (Completed)
 - Fully implement and audit Wayne State University Brand Colors (`#0C5449` and `#F2A900`) and WCAG 2.1 AA contrast constraints across all charts and pages.
 - Ensure screen reader support, descriptive captions, and keyboard accessibility for all dashboard controls.
 
+### Phase 4: Academic Program Portfolio Analysis (In Progress)
+- Develop a suite of dashboards for program portfolio review without ranking or composite scores.
+- Segregate graduate and undergraduate program analysis.
+- Connect local `Active_Curriculum*.xlsx` to IPEDS and Scorecard data using purely local ETL compiled Parquet files.
+
 ## 🎨 6. Dashboard Design & Style Guidelines
 All dashboards in this project must adhere to the following styling and layout specifications:
+- **Charting Library:** All data visualizations MUST use **Altair**. Do not use Plotly, Matplotlib, or other libraries to ensure consistent branding and rendering.
 - **Data Provenance & Definitions Note:** Provide a source definition note in the sidebar or at the page bottom, confirming whether metrics show awards conferred or unique student headcounts, with active links to [NCES IPEDS](https://nces.ed.gov/ipeds/) or [College Scorecard Data Documentation](https://collegescorecard.ed.gov/data/documentation/).
 - **Contextual Subtitles:** Display subtitles under the main titles detailing analysis scopes/cohorts (e.g., "Michigan Public Universities", "Urban Peers", "Public R1 Universities"), timeframes (e.g., "2019 to 2024"), and core metrics.
 
