@@ -24,7 +24,7 @@ def load_data():
 
 df, df_soc = load_data()
 
-st.title("WSU Post-Graduation Outcomes BCG Matrix")
+st.title("DRAFT WSU Post-Graduation Outcomes Matrix DRAFT")
 st.markdown("Evaluate WSU's Classification of Instructional Programs (CIP) against Michigan statewide labor market averages.")
 
 # --- Sidebar Controls ---
