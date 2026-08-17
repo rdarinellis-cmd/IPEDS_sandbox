@@ -1,50 +1,13 @@
 import pandas as pd
 import numpy as np
+import glob
 import os
+import sys
 
-def normalize_cip(cip):
-    """Normalize a CIP code string to XX.XXXX format with leading zeros and dot."""
-    if pd.isna(cip):
-        return None
-    s = str(cip).strip().replace('="', '').replace('"', '')
-    if not s:
-        return None
-    
-    # Split by dot
-    if '.' in s:
-        parts = s.split('.')
-        family = parts[0]
-        prog = parts[1] if len(parts) > 1 else ""
-    else:
-        # No dot, e.g. "010101" or "1"
-        if len(s) == 6:
-            family = s[:2]
-            prog = s[2:]
-        elif len(s) == 5:
-            family = "0" + s[0]
-            prog = s[1:]
-        elif len(s) <= 2:
-            family = s
-            prog = ""
-        else:
-            family = s
-            prog = ""
-            
-    # Format family to 2 digits
-    try:
-        family_int = int(family)
-        family_str = f"{family_int:02d}"
-    except ValueError:
-        family_str = family.zfill(2)
-        
-    # Format prog to 4 digits (pad right with zeros)
-    prog_clean = prog.replace('.', '').strip()
-    if len(prog_clean) < 4:
-        prog_str = prog_clean.ljust(4, '0')
-    else:
-        prog_str = prog_clean[:4]
-        
-    return f"{family_str}.{prog_str}"
+# Run directly as `python scripts/build_pipeline.py`, so sys.path[0] is scripts/ --
+# put the project root on the path before importing the shared ETL definitions.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from etl.common import normalize_cip  # noqa: E402
 
 
 def clean_cip_code(cip_series):
@@ -66,7 +29,7 @@ def main():
     print("Loading data files...")
     # Read files
     df_pathfinder = pd.read_excel('data/raw/labor_mi/Pathfinder-Employment_Outcome_Report-Wayne_State_University.xlsx', sheet_name='Wayne State University')
-    df_cip = pd.read_csv('data/raw/crosswalks/CIPCode2020.csv', encoding='latin1')
+    df_cip = pd.read_csv('data/raw/crosswalks/CIPCode2020_CIPTitle.csv', encoding='latin1')
     df_crosswalk = pd.read_excel('data/raw/crosswalks/CIP2020_SOC2018_Crosswalk.xlsx', sheet_name='CIP-SOC')
     df_wage = pd.read_csv('data/raw/labor_mi/IOWage_data.csv', encoding='latin1')
 
@@ -257,10 +220,32 @@ def main():
 
     print("Integrating WSU College mappings...")
     try:
-        catalog_path = 'data/raw/crosswalks/Curricula Catalog with CPLR-1.xlsx'
-        if os.path.exists(catalog_path):
-            df_curric = pd.read_excel(catalog_path)
-            df_curric = df_curric.dropna(subset=['CIP', 'College'])
+        # Registry filename carries a date stamp (e.g. Curricula_CIP_2026-06.xlsx), so match
+        # the newest rather than pinning a version. '~$' files are Excel lock files, not data.
+        candidates = sorted(
+            p for p in glob.glob('data/raw/crosswalks/Curricula_CIP_*.xlsx')
+            if not os.path.basename(p).startswith('~$')
+        )
+        catalog_path = candidates[-1] if candidates else None
+        if catalog_path:
+            # dtype=str is load-bearing: CIP6 parses as float64 otherwise, dropping the
+            # leading zero for families 03/04/05/09 (42 of 859 rows in the 2026-06 registry).
+            df_curric = pd.read_excel(catalog_path, dtype=str)
+
+            # The registry lists non-degree entries alongside real majors -- 'pre-' tracks,
+            # exploratory/undeclared, seminary and other ND_* programs. They legitimately have
+            # no CIP code, so they are skipped rather than treated as an error. Match on a
+            # well-formed 6-digit code instead of just dropping blanks, so a placeholder
+            # string ('N/A', 'TBD') is skipped too rather than becoming a junk mapping key.
+            usable = (
+                df_curric['CIP6'].fillna('').str.strip().str.fullmatch(r'\d{6}')
+                & df_curric['College'].notna()
+            )
+            skipped = int((~usable).sum())
+            df_curric = df_curric[usable]
+            if skipped:
+                print(f"   Skipped {skipped:,} registry row(s) with no usable CIP code "
+                      "(non-degree/exploratory programs) -- expected, not an error.")
             
             def clean_curric_cip(val):
                 val_str = str(val).strip()
@@ -274,7 +259,7 @@ def main():
                         pass
                 return normalize_cip(val_str)
                 
-            df_curric['cip_clean'] = df_curric['CIP'].map(clean_curric_cip)
+            df_curric['cip_clean'] = df_curric['CIP6'].map(clean_curric_cip)
             df_curric = df_curric.dropna(subset=['cip_clean'])
             
             wsu_mapping = df_curric.groupby('cip_clean')['College'].apply(
@@ -282,7 +267,10 @@ def main():
             ).to_dict()
             
             df_final['College'] = df_final['CIP Code'].map(wsu_mapping)
-            print("   WSU College mappings assigned successfully.")
+            matched = int(df_final['College'].notna().sum())
+            print(f"   WSU College mappings assigned from {os.path.basename(catalog_path)}: "
+                  f"{matched:,}/{len(df_final):,} rows matched "
+                  f"({df_curric['cip_clean'].nunique():,} distinct CIPs in registry).")
         else:
             print("Warning: Curricula Catalog not found. College column will be empty.")
             df_final['College'] = None

@@ -9,73 +9,28 @@ This ensures the public Streamlit app on GitHub has a tiny footprint (< 1 MB tot
 and does not require downloading or processing 300+ MB of raw census databases.
 """
 
+import glob
 import os
+import sys
+
 import pandas as pd
 import duckdb
 import pyarrow.parquet as pq
 
+# This module is run directly (`python etl/compile_app_data.py`) and also imported
+# by ingest_master.py, so put the project root on sys.path before the shared import.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from etl.common import (  # noqa: E402
+    MICHIGAN_UNIVERSITIES,
+    PUBLIC_R1_C21BASIC,
+    PUBLIC_R1_CONTROL,
+    URBAN_PEER_IDS,
+    WSU_NAME,
+    normalize_cip,
+)
+
 RAW_DIR = "./data/raw/ipeds"
 APP_DIR = "./data/app"
-
-# 15 Michigan public universities for Completions Market Share
-MICHIGAN_UNIVERSITIES = [
-    'Central Michigan University',
-    'Eastern Michigan University',
-    'Ferris State University',
-    'Grand Valley State University',
-    'Lake Superior State University',
-    'Michigan State University',
-    'Michigan Technological University',
-    'Northern Michigan University',
-    'Oakland University',
-    'Saginaw Valley State University',
-    'University of Michigan-Ann Arbor',
-    'University of Michigan-Dearborn',
-    'University of Michigan-Flint',
-    'Wayne State University',
-    'Western Michigan University'
-]
-
-
-def normalize_cip(cip):
-    """Normalize a CIP code string to XX.XXXX format with leading zeros and dot."""
-    if pd.isna(cip):
-        return None
-    s = str(cip).strip().replace('="', '').replace('"', '')
-    if not s:
-        return None
-    
-    if '.' in s:
-        parts = s.split('.')
-        family = parts[0]
-        prog = parts[1] if len(parts) > 1 else ""
-    else:
-        if len(s) == 6:
-            family = s[:2]
-            prog = s[2:]
-        elif len(s) == 5:
-            family = "0" + s[0]
-            prog = s[1:]
-        elif len(s) <= 2:
-            family = s
-            prog = ""
-        else:
-            family = s
-            prog = ""
-            
-    try:
-        family_int = int(family)
-        family_str = f"{family_int:02d}"
-    except ValueError:
-        family_str = family.zfill(2)
-        
-    prog_clean = prog.replace('.', '').strip()
-    if len(prog_clean) < 4:
-        prog_str = prog_clean.ljust(4, '0')
-    else:
-        prog_str = prog_clean[:4]
-        
-    return f"{family_str}.{prog_str}"
 
 
 def read_parquet_upper(file_path, cols):
@@ -91,15 +46,39 @@ def read_parquet_upper(file_path, cols):
 
 def get_wsu_college_mapping():
     """Reads the WSU Curricula Catalog and builds a dict mapping CIP to comma-separated WSU colleges."""
-    catalog_path = "data/raw/crosswalks/Curricula Catalog with CPLR-1.xlsx"
-    if not os.path.exists(catalog_path):
-        print(f"   ⚠️ Warning: Curricula Catalog not found at {catalog_path}.")
+    # Registry filename carries a date stamp (e.g. Curricula_CIP_2026-06.xlsx), so match the
+    # newest rather than pinning a version. '~$' files are Excel lock files, not data.
+    candidates = sorted(
+        p for p in glob.glob("data/raw/crosswalks/Curricula_CIP_*.xlsx")
+        if not os.path.basename(p).startswith("~$")
+    )
+    if not candidates:
+        print("   ⚠️ Warning: no Curricula_CIP_*.xlsx registry found in data/raw/crosswalks/. "
+              "The wsu_college column will be EMPTY, which silently disables the "
+              "'WSU School/College' filter on the CIP Market Share page.")
         return {}
-    
+    catalog_path = candidates[-1]
+
     try:
-        df = pd.read_excel(catalog_path)
-        df = df.dropna(subset=['CIP', 'College'])
-        
+        # dtype=str is load-bearing: CIP6 parses as float64 otherwise, dropping the leading
+        # zero for families 03/04/05/09 (42 of 859 rows in the 2026-06 registry).
+        df = pd.read_excel(catalog_path, dtype=str)
+
+        # The registry lists non-degree entries alongside real majors -- 'pre-' tracks,
+        # exploratory/undeclared, seminary and other ND_* programs. They legitimately have no
+        # CIP code, so they are skipped rather than treated as an error. Match on a well-formed
+        # 6-digit code instead of just dropping blanks, so a placeholder string ('N/A', 'TBD')
+        # is skipped too rather than becoming a junk mapping key.
+        usable = (
+            df['CIP6'].fillna('').str.strip().str.fullmatch(r'\d{6}')
+            & df['College'].notna()
+        )
+        skipped = int((~usable).sum())
+        df = df[usable]
+        if skipped:
+            print(f"   Skipped {skipped:,} registry row(s) with no usable CIP code "
+                  "(non-degree/exploratory programs) -- expected, not an error.")
+
         def clean_curric_cip(val):
             val_str = str(val).strip()
             if '.' in val_str:
@@ -112,14 +91,16 @@ def get_wsu_college_mapping():
                     pass
             return normalize_cip(val_str)
             
-        df['cip_clean'] = df['CIP'].map(clean_curric_cip)
+        df['cip_clean'] = df['CIP6'].map(clean_curric_cip)
         df = df.dropna(subset=['cip_clean'])
-        
+
         # Group by CIP and collect colleges as comma-separated unique values
         mapping = df.groupby('cip_clean')['College'].apply(
             lambda x: ", ".join(sorted(list(set(str(col).strip() for col in x if pd.notna(col)))))
         ).to_dict()
-        
+
+        print(f"   WSU College mapping built from {os.path.basename(catalog_path)}: "
+              f"{len(mapping):,} distinct CIPs.")
         return mapping
     except Exception as e:
         print(f"   ⚠️ Error reading WSU Curricula Catalog: {e}")
@@ -153,22 +134,24 @@ def compile_completions():
     hd_mi = hd[hd['INSTNM'].isin(mi_names)].copy()
     
     # b. Urban peers:
-    urban_peer_ids = [172644, 133951, 225511, 201885, 139940, 216339, 234030, 157289, 187985, 145600, 100663]
-    hd_urban = hd[hd['UNITID'].isin(urban_peer_ids)].copy()
+    hd_urban = hd[hd['UNITID'].isin(URBAN_PEER_IDS)].copy()
     
     # c. Public R1s:
     hd['CONTROL'] = pd.to_numeric(hd['CONTROL'], errors='coerce')
     hd['C21BASIC'] = pd.to_numeric(hd['C21BASIC'], errors='coerce')
-    hd_r1 = hd[(hd['CONTROL'] == 1) & (hd['C21BASIC'] == 15)].copy()
+    hd_r1 = hd[(hd['CONTROL'] == PUBLIC_R1_CONTROL) & (hd['C21BASIC'] == PUBLIC_R1_C21BASIC)].copy()
     
     # Merge and build flags
     hd_all = pd.concat([hd_mi, hd_urban, hd_r1]).drop_duplicates(subset=['UNITID']).copy()
     hd_all['is_mi_public'] = hd_all['INSTNM'].isin(mi_names).astype(int)
-    hd_all['is_urban_peer'] = hd_all['UNITID'].isin(urban_peer_ids).astype(int)
-    hd_all['is_public_r1'] = ((hd_all['CONTROL'] == 1) & (hd_all['C21BASIC'] == 15)).astype(int)
+    hd_all['is_urban_peer'] = hd_all['UNITID'].isin(URBAN_PEER_IDS).astype(int)
+    hd_all['is_public_r1'] = ((hd_all['CONTROL'] == PUBLIC_R1_CONTROL) & (hd_all['C21BASIC'] == PUBLIC_R1_C21BASIC)).astype(int)
     
+    # Audit artifact, not a dashboard input: no page reads this. It records which
+    # institutions landed in which cohort for a given run, which is what you want when a
+    # cohort count looks wrong. Regenerated every run, so don't hand-edit it.
     hd_all.to_parquet(os.path.join(APP_DIR, "hd_completions.parquet"), index=False)
-    print(f"   Saved: hd_completions.parquet ({len(hd_all)} institutions)")
+    print(f"   Saved: hd_completions.parquet ({len(hd_all)} institutions, audit artifact)")
     
     selected_unitids = hd_all['UNITID'].tolist()
     
@@ -214,7 +197,7 @@ def compile_completions():
         wsu_mapping = get_wsu_college_mapping()
         
         def map_college(row):
-            if row['institution'] == 'Wayne State University':
+            if row['institution'] == WSU_NAME:
                 return wsu_mapping.get(row['cip_code'], None)
             return None
             
@@ -305,20 +288,19 @@ def compile_spending():
         
         # Define cohorts
         mi_names = MICHIGAN_UNIVERSITIES
-        urban_peer_ids = [172644, 133951, 225511, 201885, 139940, 216339, 234030, 157289, 187985, 145600, 100663]
-        
+            
         hd['CONTROL'] = pd.to_numeric(hd['CONTROL'], errors='coerce')
         hd['C21BASIC'] = pd.to_numeric(hd['C21BASIC'], errors='coerce')
         
         hd_mi = hd[hd['INSTNM'].isin(mi_names)].copy()
-        hd_urban = hd[hd['UNITID'].isin(urban_peer_ids)].copy()
-        hd_r1 = hd[(hd['CONTROL'] == 1) & (hd['C21BASIC'] == 15)].copy()
+        hd_urban = hd[hd['UNITID'].isin(URBAN_PEER_IDS)].copy()
+        hd_r1 = hd[(hd['CONTROL'] == PUBLIC_R1_CONTROL) & (hd['C21BASIC'] == PUBLIC_R1_C21BASIC)].copy()
         
         # Merge all selected cohort schools
         hd_all_selected = pd.concat([hd_mi, hd_urban, hd_r1]).drop_duplicates(subset=['UNITID']).copy()
         hd_all_selected['is_mi_public'] = hd_all_selected['INSTNM'].isin(mi_names).astype(int)
-        hd_all_selected['is_urban_peer'] = hd_all_selected['UNITID'].isin(urban_peer_ids).astype(int)
-        hd_all_selected['is_public_r1'] = ((hd_all_selected['CONTROL'] == 1) & (hd_all_selected['C21BASIC'] == 15)).astype(int)
+        hd_all_selected['is_urban_peer'] = hd_all_selected['UNITID'].isin(URBAN_PEER_IDS).astype(int)
+        hd_all_selected['is_public_r1'] = ((hd_all_selected['CONTROL'] == PUBLIC_R1_CONTROL) & (hd_all_selected['C21BASIC'] == PUBLIC_R1_C21BASIC)).astype(int)
         
         # Merge
         m_df = hd_all_selected.merge(ef, on='UNITID', how='left')
@@ -377,20 +359,19 @@ def compile_portfolio_shape():
 
     # Define cohorts
     mi_names = MICHIGAN_UNIVERSITIES
-    urban_peer_ids = [172644, 133951, 225511, 201885, 139940, 216339, 234030, 157289, 187985, 145600, 100663]
     
     hd['CONTROL'] = pd.to_numeric(hd['CONTROL'], errors='coerce')
     hd['C21BASIC'] = pd.to_numeric(hd['C21BASIC'], errors='coerce')
     
     hd_mi = hd[hd['INSTNM'].isin(mi_names)].copy()
-    hd_urban = hd[hd['UNITID'].isin(urban_peer_ids)].copy()
-    hd_r1 = hd[(hd['CONTROL'] == 1) & (hd['C21BASIC'] == 15)].copy()
+    hd_urban = hd[hd['UNITID'].isin(URBAN_PEER_IDS)].copy()
+    hd_r1 = hd[(hd['CONTROL'] == PUBLIC_R1_CONTROL) & (hd['C21BASIC'] == PUBLIC_R1_C21BASIC)].copy()
     
     # Merge and build flags
     hd_all = pd.concat([hd_mi, hd_urban, hd_r1]).drop_duplicates(subset=['UNITID']).copy()
     hd_all['is_mi_public'] = hd_all['INSTNM'].isin(mi_names).astype(int)
-    hd_all['is_urban_peer'] = hd_all['UNITID'].isin(urban_peer_ids).astype(int)
-    hd_all['is_public_r1'] = ((hd_all['CONTROL'] == 1) & (hd_all['C21BASIC'] == 15)).astype(int)
+    hd_all['is_urban_peer'] = hd_all['UNITID'].isin(URBAN_PEER_IDS).astype(int)
+    hd_all['is_public_r1'] = ((hd_all['CONTROL'] == PUBLIC_R1_CONTROL) & (hd_all['C21BASIC'] == PUBLIC_R1_C21BASIC)).astype(int)
     
     ALL_PEER_IDS = hd_all['UNITID'].tolist()
     ids_sql = ", ".join(map(str, ALL_PEER_IDS))

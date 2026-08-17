@@ -25,56 +25,13 @@ import os
 import numpy as np
 import pandas as pd
 
+from etl.common import normalize_cip
+
 XWALK_PATH  = "data/raw/crosswalks/CIP2020_SOC2018_Crosswalk.xlsx"
 MATRIX_PATH = "data/raw/labor_mi/IOMatrix_data.csv"   # MILMI occupation projections
 WAGE_PATH   = "data/raw/labor_mi/IOWage_data.csv"     # MILMI occupation wages
 OUT_DIR     = "data/app"
 HOURS_PER_YEAR = 2080
-
-
-def normalize_cip(cip):
-    """Normalize a CIP code string to XX.XXXX format with leading zeros and dot."""
-    if pd.isna(cip):
-        return None
-    s = str(cip).strip().replace('="', '').replace('"', '')
-    if not s:
-        return None
-    
-    # Split by dot
-    if '.' in s:
-        parts = s.split('.')
-        family = parts[0]
-        prog = parts[1] if len(parts) > 1 else ""
-    else:
-        # No dot, e.g. "010101" or "1"
-        if len(s) == 6:
-            family = s[:2]
-            prog = s[2:]
-        elif len(s) == 5:
-            family = "0" + s[0]
-            prog = s[1:]
-        elif len(s) <= 2:
-            family = s
-            prog = ""
-        else:
-            family = s
-            prog = ""
-            
-    # Format family to 2 digits
-    try:
-        family_int = int(family)
-        family_str = f"{family_int:02d}"
-    except ValueError:
-        family_str = family.zfill(2)
-        
-    # Format prog to 4 digits (pad right with zeros)
-    prog_clean = prog.replace('.', '').strip()
-    if len(prog_clean) < 4:
-        prog_str = prog_clean.ljust(4, '0')
-    else:
-        prog_str = prog_clean[:4]
-        
-    return f"{family_str}.{prog_str}"
 
 
 def _norm_soc(s):
@@ -84,7 +41,8 @@ def _norm_soc(s):
     # Remove decimal suffixes if any, then remove non-digits
     s_clean = str(s).split('.')[0]
     import re
-    return re.sub(r'[^0-9]', '', s_clean).strip()
+    digits = re.sub(r'[^0-9]', '', s_clean).strip()
+    return digits if len(digits) == 6 else None
 
 
 def load_crosswalk(path=XWALK_PATH):
@@ -112,15 +70,32 @@ def load_projections(path=MATRIX_PATH):
 
 def load_wages(path=WAGE_PATH):
     """MILMI occupation-level wages (latin-1, comma; HOURLY -> annualized)."""
+    # Note: Upstream source CSV should be re-exported with the SOC column formatted as text so Excel stops autocorrecting codes to dates (e.g. '11-1011' -> 'Nov-11').
     df = pd.read_csv(path, dtype=str, encoding="latin-1")
-    df["soc6"] = df["SOC Occupation Code"].map(_norm_soc)
-    df["val"] = pd.to_numeric(df["Measure Values"], errors="coerce")
+
+    # Bug 2: Detect and drop rows with invalid / Excel-corrupted SOC codes
+    raw_soc = df["SOC Occupation Code"]
+    df["soc6"] = raw_soc.map(_norm_soc)
+    bad_mask = df["soc6"].isna() & raw_soc.notna()
+    bad_rows_count = int(bad_mask.sum())
+    if bad_rows_count > 0:
+        bad_raw_values = sorted(raw_soc[bad_mask].unique().tolist())
+        print(f"WARNING: Dropped {bad_rows_count} wage rows with invalid/corrupted SOC codes: {bad_raw_values}")
+    df = df.dropna(subset=["soc6"])
+
+    # Bug 1: Treat sentinel '9999.99' as NaN on raw hourly value before annualization
+    raw_val = df["Measure Values"].replace("9999.99", np.nan)
+    df["val"] = pd.to_numeric(raw_val, errors="coerce")
+    df.loc[np.isclose(df["val"], 9999.99), "val"] = np.nan
+
     wide = df.pivot_table(index="soc6", columns="Measure Names",
                           values="val", aggfunc="first").reset_index()
     for out, src in [("median_wage", "Median Wage"),
                      ("entry_wage", "Entry Level Wage"),
                      ("exp_wage", "ExperienceWage")]:
         wide[out] = pd.to_numeric(wide.get(src), errors="coerce") * HOURS_PER_YEAR
+
+    assert wide["median_wage"].max() < 500_000, f"median_wage max {wide['median_wage'].max()} exceeds $500k ceiling"
     return wide[["soc6", "median_wage", "entry_wage", "exp_wage"]]
 
 

@@ -15,6 +15,7 @@ This dashboard is designed to run completely serverlessly on a local-first, file
 - **Hosting Strategy:** Deployed directly to Streamlit Community Cloud (GitHub Synced).
 - **Financial Cost:** Guaranteed $0.00/month footprint using free hosting tier.
 - **ETL Boundary (Data Source Constraint):** Never query raw datasets (`data/raw/`) directly from dashboard pages, as these files are git-ignored and missing in production. All raw data must be aggregated locally using `etl/compile_app_data.py` into lightweight `.parquet` databases inside `data/app/` and read from there in the page views.
+- **Single Source of Truth (`etl/common.py`):** Definitions used by more than one script — the CIP normalizer, peer-cohort membership, WSU school/college codes, and the brand palette — live in `etl/common.py` and are imported, never copy-pasted. See section 10 for the rule and its rationale.
 
 ## 📁 3. Workspace Layout
 The repository is structured as a lightweight Python project:
@@ -39,12 +40,16 @@ IPEDS_sandbox/
 │   ├── spending_analyzer.py# Cost/spending analysis dashboard
 │   ├── spending_portfolio_shape.py # Expenditure Shape benchmarking page
 │   └── kettering_outcomes.py # Kettering Outcomes view (development branch)
+├── build_demand.py         # Builds the Michigan occupational DEMAND marts (CIP x SOC)
 ├── etl/                    # Raw data ingestion & compilation pipeline
+│   ├── common.py           # SHARED definitions (CIP normalizer, cohorts, colleges, brand colors)
 │   ├── compile_app_data.py # Local aggregator creating local application Parquet databases
 │   ├── ingest_master.py    # Fetches public datasets and converts them to Snappy-Parquet
 │   └── ingest_nih_reporter.py # Fetches and structures NIH RePORTER data
 ├── scripts/                # Data cleaning and pipeline operations
-│   └── build_pipeline.py   # Local ETL pipeline merging Pathfinder, SOC, and cached Parquet data
+│   ├── build_pipeline.py   # Local ETL pipeline merging Pathfinder, SOC, and cached Parquet data
+│   ├── clean_labor_mi_raw.py    # Normalizes a fresh MILMI wage download (run after each re-download)
+│   └── clean_crosswalk_raw.py   # Fixes/consolidates data/raw/crosswalks/, archives redundant files
 ├── data/                   # Data directory (Parquet caches)
 │   ├── app/                # Compiled application databases (Parquet files read by dashboard)
 │   └── raw/                # Local raw Parquet data lake (Ignored by Git)
@@ -56,7 +61,10 @@ IPEDS_sandbox/
 ```
 
 > [!NOTE]
-> The view `app_pages/wsu_outcomes_matrix.py` is configured in [app.py](file:///Users/ac7940/Antigravity/IPEDS_sandbox/app.py) but resides in the sibling folder `WSU Data/app_pages/wsu_outcomes_matrix.py` in the developer's workspace.
+> The view `app_pages/wsu_outcomes_matrix.py` now lives in this repository and is the copy
+> [app.py](file:///Users/ac7940/Antigravity/IPEDS_sandbox/app.py) loads (the `st.Page` path resolves relative to the project root).
+> An older copy still exists at `WSU Data/app_pages/wsu_outcomes_matrix.py` in the sibling
+> workspace folder; it is **not** loaded by the app and should be treated as stale.
 
 ## 🛠️ 4. Operational Playbooks (zsh Terminal)
 
@@ -167,3 +175,47 @@ Every dashboard page containing filters must organize its sidebar sequentially a
 ### B. Main Page Title & Captions
 1. **Title:** Display a clear main title at the top of the main area (e.g. `st.title("...")`).
 2. **Dynamic Context Caption:** Immediately below the title, render a dynamic caption containing the active cohort group, year range, and primary metrics being analyzed (e.g., `st.caption(f"#### Scope: {selected_cohort} | Years: ... | Metrics: ...")`).
+
+## 🧩 10. Shared ETL Definitions (`etl/common.py`)
+
+Anything used by more than one script or page is defined **once**, in [etl/common.py](file:///Users/ac7940/Antigravity/IPEDS_sandbox/etl/common.py), and imported.
+
+### A. What lives there
+| Definition | Purpose |
+|---|---|
+| `normalize_cip()` | Canonical CIP formatter (`XX.XXXX`, leading zeros preserved) |
+| `split_college_codes()` | Splits a comma-joined `"BA, EN, LS"` college cell into codes |
+| `MICHIGAN_UNIVERSITIES` / `MICHIGAN_UNIVERSITY_IDS` | The 15 Michigan publics, by name and by UNITID |
+| `URBAN_PEER_IDS` | Urban peer public cohort |
+| `PUBLIC_R1_CONTROL` / `PUBLIC_R1_C21BASIC` | The Public R1 test (CONTROL 1, Carnegie 15) |
+| `WSU_UNITID` / `WSU_NAME` | Wayne State identifiers |
+| `COLLEGE_NAMES` | WSU school/college code → display name |
+| `WSU_GREEN`, `WSU_GOLD`, `PEER_GREY`, `PEER_GREY_LIGHT` | Brand palette (section 8A) |
+
+### B. Why this rule exists
+`normalize_cip()` had drifted into three separate copies, and the WSU college-mapping
+function existed twice. When the curriculum registry was renamed, the resulting bug had to be
+found and fixed **twice in the same day** — once in `scripts/build_pipeline.py` and again in
+`etl/compile_app_data.py`, where it sat undetected because the stale mart still held good data.
+Duplicated definitions do not fail loudly; they rot in one copy while the other looks fine.
+
+### C. How to import
+The project root is the import root. Pages and root-level scripts import directly:
+
+```python
+from etl.common import normalize_cip, URBAN_PEER_IDS
+```
+
+Scripts executed from a subdirectory (`python etl/compile_app_data.py`, `python scripts/build_pipeline.py`)
+put the project root on `sys.path` first, because Python sets `sys.path[0]` to the *script's* folder:
+
+```python
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from etl.common import normalize_cip  # noqa: E402
+```
+
+### D. The one exception
+CSS injected through `st.markdown()` keeps its hex colors as literals. CSS is brace-heavy, so
+interpolating Python constants would mean escaping every rule for the f-string. Those blocks and
+the palette in `etl/common.py` are kept in sync by hand.

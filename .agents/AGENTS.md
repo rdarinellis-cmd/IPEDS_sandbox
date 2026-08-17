@@ -22,14 +22,25 @@ To prevent runtime crashes and ensure zero-downtime remote deployments (such as 
 - **Aggregate all raw inputs locally** using `etl/compile_app_data.py` into lightweight `.parquet` databases inside `data/app/`.
 - **Load pre-compiled `.parquet` tables** directly in front-end pages.
 
-### 4. Unified Cohort Selection & Sidebar Filtering Layout
+### 4. Shared Definitions Rule (`etl/common.py`)
+Anything used by more than one script or page is defined **once**, in `etl/common.py`, and imported — never copy-pasted:
+- `normalize_cip()`, `split_college_codes()`
+- Cohort membership: `MICHIGAN_UNIVERSITIES`, `MICHIGAN_UNIVERSITY_IDS`, `URBAN_PEER_IDS`, `PUBLIC_R1_CONTROL`, `PUBLIC_R1_C21BASIC`
+- Identity: `WSU_UNITID`, `WSU_NAME`, `COLLEGE_NAMES`
+- Brand palette: `WSU_GREEN`, `WSU_GOLD`, `PEER_GREY`, `PEER_GREY_LIGHT`
+
+**Before writing a helper or a constant, check `etl/common.py` first.** If you catch yourself pasting a CIP formatter, a peer-ID list, or a hex color, import it instead. Duplicated definitions here have already produced silent, hard-to-find data bugs.
+
+Scripts run from a subdirectory need the project root on `sys.path` before the import (see ARCHITECTURE.md section 10C). CSS strings inside `st.markdown()` are the one exception and keep literal hex values.
+
+### 5. Unified Cohort Selection & Sidebar Filtering Layout
 Every dashboard page containing filters must organize its layout as follows:
 - **Sidebar Selector Order:** All interactive widgets (year, cohort group, cohort members) must be defined consecutively at the top of the sidebar.
 - **Attribution Note:** Place the "Definitions & Sources" markdown block at the very bottom of the sidebar below all widgets, preceded by a horizontal line divider (`---`).
 - **Main Page Title & Dynamic Subtitles:** Draw the main title, followed immediately by a dynamic caption showing the active cohort group, year range, and primary metrics being analyzed (e.g. `st.caption(f"#### Scope: {selected_cohort} | Years: ... | Metrics: ...")`).
 - **Selector Naming:** The cohort group selectbox must be named `"Select Cohort Group"` and have the options `["Michigan Publics (MASU)", "Urban Peer Publics", "Public R1 Universities"]`. The cohort member selector must be named `"Select Universities"` (or `"Select Peer Universities"`).
 
-### 5. Institutional Visual Identity (Wayne State vs Peers)
+### 6. Institutional Visual Identity (Wayne State vs Peers)
 Always represent Wayne State University distinctively using **WSU Green** (`#0C5449`) and **WSU Gold** (`#F2A900`) across all charts. 
 All peer institutions or peer medians must be represented uniformly and distinctly from WSU using neutral styling (e.g., Black `#000000` and Grey `#737373` or `#cccccc`), ensuring Wayne State immediately stands out in all visual comparisons.
 

@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import altair as alt
 
+from etl.common import MICHIGAN_UNIVERSITY_IDS, URBAN_PEER_IDS, WSU_UNITID
+
 # --- PAGE CONFIGURATION ---
 # Note: Page config is set in app.py globally, but we specify the font and style inline.
 
@@ -29,16 +31,14 @@ html, body, [class*="css"], .stMarkdown {
 """, unsafe_allow_html=True)
 
 # --- CONFIG & PEERS ---
-WSU_UNITID = 172644
-
 PEER_FRAMES = {
     "Frame A: Michigan Publics (MASU)": {
         "name": "Michigan Public Universities",
-        "ids": [169248, 169798, 169910, 170082, 170639, 171100, 171128, 171456, 171571, 172051, 170976, 171137, 171146, 172644, 172699]
+        "ids": MICHIGAN_UNIVERSITY_IDS
     },
     "Frame B: Urban Peer Publics": {
         "name": "Urban Peer Publics",
-        "ids": [172644, 133951, 225511, 201885, 139940, 216339, 234030, 157289, 187985, 145600, 100663]
+        "ids": URBAN_PEER_IDS
     }
 }
 
