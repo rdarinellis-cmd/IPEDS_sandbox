@@ -61,10 +61,19 @@ IPEDS_sandbox/
 ```
 
 > [!NOTE]
-> The view `app_pages/wsu_outcomes_matrix.py` now lives in this repository and is the copy
-> [app.py](file:///Users/ac7940/Antigravity/IPEDS_sandbox/app.py) loads (the `st.Page` path resolves relative to the project root).
-> An older copy still exists at `WSU Data/app_pages/wsu_outcomes_matrix.py` in the sibling
-> workspace folder; it is **not** loaded by the app and should be treated as stale.
+> **Pages present but not reachable in the app.** As of the 2026-08-17 merge, `app.py`
+> registers only the Overview and Institutional Analysis groups. Three views exist on disk but
+> are not in `st.navigation`:
+> - `app_pages/wsu_outcomes_matrix.py` — dropped from navigation during the Aug-14 restructure;
+>   its marts (`wsu_cip_outcomes`, `statewide_soc_benchmarks`) are still built and current.
+> - `app_pages/institutional_trajectory.py` — new in Aug-14, never registered.
+> - `app_pages/kettering_outcomes.py` — intentionally parked (development branch).
+>
+> The nine `portfolio_*` views ARE registered but their `"Program Portfolio"` navigation group
+> is commented out pending completion of Phase 4.
+>
+> A stale copy of `wsu_outcomes_matrix.py` also exists at `WSU Data/app_pages/` in the sibling
+> workspace folder; it is not loaded and should be treated as obsolete.
 
 ## 🛠️ 4. Operational Playbooks (zsh Terminal)
 
