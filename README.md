@@ -26,12 +26,16 @@ This repository contains tools for analyzing Higher Education data from the Inte
 │   ├── spending_analyzer.py# Cost/spending analysis dashboard
 │   ├── spending_portfolio_shape.py # Expenditure Shape benchmarking page
 │   └── kettering_outcomes.py # Kettering Outcomes view (development branch)
+├── build_demand.py         # Builds the Michigan occupational DEMAND marts (CIP x SOC)
 ├── etl/                    # Raw data ingestion & compilation pipeline
+│   ├── common.py           # SHARED definitions - import these, never re-paste them
 │   ├── compile_app_data.py # Local aggregator creating local application Parquet databases
 │   ├── ingest_master.py    # Fetches public datasets and converts them to Snappy-Parquet
 │   └── ingest_nih_reporter.py # Fetches and structures NIH RePORTER data
 ├── scripts/                # Data cleaning and pipeline operations
-│   └── build_pipeline.py   # Local ETL pipeline merging Pathfinder, SOC, and cached Parquet data
+│   ├── build_pipeline.py   # Local ETL pipeline merging Pathfinder, SOC, and cached Parquet data
+│   ├── clean_labor_mi_raw.py    # Normalizes a fresh MILMI wage download
+│   └── clean_crosswalk_raw.py   # Fixes/consolidates data/raw/crosswalks/
 ├── data/                   # Data directory (Parquet caches)
 │   ├── app/                # Compiled application databases (Parquet files read by dashboard)
 │   └── raw/                # Local raw Parquet data lake (Ignored by Git)
@@ -79,6 +83,36 @@ To run only a specific ingestion task, use the `--only` option:
 # Ingest only the College Scorecard Field of Study dataset
 ./.venv/bin/python etl/ingest_master.py --only scorecard
 ```
+
+> [!IMPORTANT]
+> Run every ETL script **from the project root**. They resolve data paths relative to the
+> current working directory, and they import shared definitions from `etl/common.py`.
+
+### 4. Refreshing the Michigan Labor Market Data
+The MILMI wage export changes shape between downloads (comma vs. tab, latin-1 vs. UTF-16,
+statewide-only vs. 31 geographies). After re-downloading `IOWage_data.csv`, normalize it first:
+```bash
+./.venv/bin/python scripts/clean_labor_mi_raw.py
+```
+Then rebuild the marts that depend on it:
+```bash
+./.venv/bin/python build_demand.py
+./.venv/bin/python scripts/build_pipeline.py
+```
+
+> [!WARNING]
+> Never open `IOWage_data.csv` in Excel before running the cleaner. Excel autocorrects SOC
+> codes in major group 11 (Management) into dates — `11-1011` becomes `Nov-11` — which silently
+> drops every Management wage from the marts.
+
+### 5. Shared ETL Definitions
+The CIP normalizer, peer-cohort lists, WSU college codes, and brand colors live in
+[etl/common.py](etl/common.py). Import them rather than re-declaring them:
+```python
+from etl.common import normalize_cip, URBAN_PEER_IDS, WSU_GREEN
+```
+See ARCHITECTURE.md section 10 for the full rule, including the `sys.path` bootstrap that
+scripts in `etl/` and `scripts/` use.
 
 ---
 

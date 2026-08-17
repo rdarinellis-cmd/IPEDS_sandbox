@@ -4,15 +4,20 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 
-# WSU Colors
-WSU_GREEN = "#0C5449"
-WSU_GOLD = "#F2A900"
+from etl.common import (
+    COLLEGE_NAMES,
+    PEER_GREY_LIGHT,
+    WSU_GOLD,
+    WSU_GREEN,
+    split_college_codes,
+)
+
 COLOR_MAP = {
     'Star': WSU_GOLD,
     'Workhorse': WSU_GREEN,
     'Hidden Gem': '#5D9B9B',
     'Strategic Opportunity': '#808080',
-    'Unknown': '#CCCCCC'
+    'Unknown': PEER_GREY_LIGHT
 }
 
 @st.cache_data
@@ -40,29 +45,11 @@ if not default_awards:
 
 selected_awards = st.sidebar.multiselect("Degree Award Level", available_awards, default=default_awards)
 
-# WSU School/College Mapping
-COLLEGE_NAMES = {
-    'BA': 'Business (Mike Ilitch School of Business)',
-    'ED': 'Education (College of Education)',
-    'EN': 'Engineering (College of Engineering)',
-    'FA': 'CFPCA (Fine, Performing & Communication Arts)',
-    'GS': 'Graduate School',
-    'IS': 'Information Sciences (School of Information Sciences)',
-    'LS': 'CLAS (Liberal Arts and Sciences)',
-    'LW': 'Law (Law School)',
-    'MD': 'Medicine (School of Medicine)',
-    'NU': 'Nursing (College of Nursing)',
-    'PA': 'EACPHS (Pharmacy & Health Sciences)',
-    'SW': 'Social Work (School of Social Work)'
-}
 
 colleges_in_data = set()
 if 'College' in df.columns:
     for cell in df['College'].dropna().unique():
-        for code in str(cell).split(','):
-            c_clean = code.strip()
-            if c_clean:
-                colleges_in_data.add(c_clean)
+        colleges_in_data.update(split_college_codes(cell))
 
 sorted_colleges = sorted(list(colleges_in_data))
 college_options = ['All Colleges'] + sorted_colleges
@@ -81,8 +68,8 @@ filtered_df = filtered_df[filtered_df['Award'].isin(selected_awards)]
 
 # Filter by college
 if selected_college_code != 'All Colleges':
-    filtered_df = filtered_df[filtered_df['College'].fillna('').apply(
-        lambda val: any(c.strip() == selected_college_code for c in str(val).split(',') if c.strip())
+    filtered_df = filtered_df[filtered_df['College'].apply(
+        lambda val: selected_college_code in split_college_codes(val)
     )]
 
 size_col = 'Total graduates (Year 1)' if is_y1 else 'Total graduates (Year 5)'

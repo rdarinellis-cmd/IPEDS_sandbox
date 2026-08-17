@@ -124,7 +124,9 @@ def ingest_crosswalk():
     
     # Read sheet "CIP-SOC" and save directly to Snappy Parquet (file is small, fits in RAM easily)
     print("🔄 Processing Excel spreadsheet...")
-    df = pd.read_excel(temp_xlsx, sheet_name="CIP-SOC")
+    # dtype=str is load-bearing: without it CIP2020Code parses as float64 and CIP
+    # families 01/03/04/05/09 silently lose their leading zero ("01.0000" -> 1.0).
+    df = pd.read_excel(temp_xlsx, sheet_name="CIP-SOC", dtype=str)
     df.columns = [str(c).strip() for c in df.columns]
     
     df.to_parquet(parquet_dest, index=False, compression="snappy")
@@ -183,8 +185,11 @@ def main():
         import compile_app_data
         compile_app_data.main()
     except Exception as e:
-        print(f"⚠️ Warning: App data compilation failed: {e}")
-        
+        # Exit non-zero so a failed compile can't read as a clean run to the caller.
+        print(f"\n❌ App data compilation FAILED: {e}")
+        print("   Raw ingestion succeeded, but data/app/ was NOT refreshed.")
+        sys.exit(1)
+
     print("\n🏁 Master Ingestion Pipeline completed successfully!")
 
 

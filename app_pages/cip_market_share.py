@@ -5,6 +5,8 @@ import os
 import numpy as np
 import duckdb
 
+from etl.common import COLLEGE_NAMES, PEER_GREY, WSU_GREEN, WSU_NAME, split_college_codes
+
 # Cache the data load
 @st.cache_data(ttl=3600)
 def load_completions_data():
@@ -12,8 +14,11 @@ def load_completions_data():
         file_path = 'data/app/completions_benchmark.parquet'
         if not os.path.exists(file_path):
             return pd.DataFrame()
+        # wsu_college is load-bearing: the "WSU School/College" sidebar filter builds its
+        # options from this column, and silently offers only "All Colleges" without it.
         query = """
-            SELECT year, institution, cip_code, award_level, total_degrees, is_mi_public, is_urban_peer, is_public_r1
+            SELECT year, institution, cip_code, award_level, total_degrees,
+                   is_mi_public, is_urban_peer, is_public_r1, wsu_college
             FROM 'data/app/completions_benchmark.parquet'
         """
         return duckdb.query(query).df()
@@ -48,7 +53,8 @@ def load_demand_summary():
         if not os.path.exists(file_path):
             return pd.DataFrame()
         return duckdb.query(f"SELECT * FROM '{file_path}'").df()
-    except Exception:
+    except Exception as e:
+        st.error(f"Failed to load demand summary from local files: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
@@ -58,7 +64,8 @@ def load_demand_itemized():
         if not os.path.exists(file_path):
             return pd.DataFrame()
         return duckdb.query(f"SELECT * FROM '{file_path}'").df()
-    except Exception:
+    except Exception as e:
+        st.error(f"Failed to load itemized demand from local files: {e}")
         return pd.DataFrame()
 
 
@@ -68,6 +75,22 @@ with st.spinner("Loading local data..."):
     cip_dict = load_cip_dictionary()
     demand_summary = load_demand_summary()
     demand_itemized = load_demand_itemized()
+
+# The loaders above return an empty frame on failure, so stop here with an explanation
+# rather than letting the column access below raise a bare KeyError at the user.
+if df_all.empty:
+    st.error(
+        "Completions data could not be loaded from `data/app/completions_benchmark.parquet`. "
+        "Run `python etl/compile_app_data.py` from the project root to rebuild it."
+    )
+    st.stop()
+
+if cip_dict.empty:
+    st.error(
+        "CIP dictionary could not be loaded from `data/app/cip_dictionary.parquet`. "
+        "Run `python etl/compile_app_data.py` from the project root to rebuild it."
+    )
+    st.stop()
 
 # Data cleaning
 df_all['cip_code'] = df_all['cip_code'].astype(str)
@@ -120,28 +143,10 @@ if selected_schools:
     df_filtered = df_filtered[df_filtered['institution'].isin(selected_schools)]
 
 # WSU School/College selector
-COLLEGE_NAMES = {
-    'BA': 'Business (Mike Ilitch School of Business)',
-    'ED': 'Education (College of Education)',
-    'EN': 'Engineering (College of Engineering)',
-    'FA': 'CFPCA (Fine, Performing & Communication Arts)',
-    'GS': 'Graduate School',
-    'IS': 'Information Sciences (School of Information Sciences)',
-    'LS': 'CLAS (Liberal Arts and Sciences)',
-    'LW': 'Law (Law School)',
-    'MD': 'Medicine (School of Medicine)',
-    'NU': 'Nursing (College of Nursing)',
-    'PA': 'EACPHS (Pharmacy & Health Sciences)',
-    'SW': 'Social Work (School of Social Work)'
-}
-
 colleges_in_data = set()
 if 'wsu_college' in df_all.columns:
     for cell in df_all['wsu_college'].dropna().unique():
-        for code in str(cell).split(','):
-            c_clean = code.strip()
-            if c_clean:
-                colleges_in_data.add(c_clean)
+        colleges_in_data.update(split_college_codes(cell))
 
 sorted_colleges = sorted(list(colleges_in_data))
 college_options = ['All Colleges'] + sorted_colleges
@@ -154,9 +159,9 @@ selected_college_code = st.sidebar.selectbox(
 
 if selected_college_code != 'All Colleges':
     # Find all CIP codes that map to this WSU college
-    wsu_rows = df_all[(df_all['institution'] == 'Wayne State University') & (df_all['wsu_college'].notna())]
+    wsu_rows = df_all[(df_all['institution'] == WSU_NAME) & (df_all['wsu_college'].notna())]
     target_cips_for_college = wsu_rows[wsu_rows['wsu_college'].apply(
-        lambda val: any(c.strip() == selected_college_code for c in str(val).split(',') if c.strip())
+        lambda val: selected_college_code in split_college_codes(val)
     )]['cip_code'].unique()
     
     # Filter df_filtered to only include these CIP codes
@@ -279,22 +284,22 @@ else:
             x=alt.X('market_share:Q', title="Market Share (2024)", axis=alt.Axis(format='%'), scale=alt.Scale(zero=False, padding=15)),
             y=alt.Y('cagr:Q', title="5-Year CAGR (2019-2024)", axis=alt.Axis(format='%'), scale=alt.Scale(zero=False, padding=15)),
             color=alt.condition(
-                alt.datum.institution == 'Wayne State University',
-                alt.value('#0C5449'),
-                alt.value('#737373')
+                alt.datum.institution == WSU_NAME,
+                alt.value(WSU_GREEN),
+                alt.value(PEER_GREY)
             ),
             shape=alt.condition(
-                alt.datum.institution == 'Wayne State University',
+                alt.datum.institution == WSU_NAME,
                 alt.value('diamond'),
                 alt.Shape('institution:N', legend=None)
             ),
             size=alt.condition(
-                alt.datum.institution == 'Wayne State University',
+                alt.datum.institution == WSU_NAME,
                 alt.value(400),
                 alt.value(150)
             ),
             opacity=alt.condition(
-                alt.datum.institution == 'Wayne State University',
+                alt.datum.institution == WSU_NAME,
                 alt.value(1.0),
                 alt.value(0.7)
             ),
