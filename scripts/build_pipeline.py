@@ -1,13 +1,12 @@
 import pandas as pd
 import numpy as np
-import glob
 import os
 import sys
 
 # Run directly as `python scripts/build_pipeline.py`, so sys.path[0] is scripts/ --
 # put the project root on the path before importing the shared ETL definitions.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from etl.common import normalize_cip  # noqa: E402
+from etl.common import find_curriculum_registry, normalize_cip  # noqa: E402
 
 
 def clean_cip_code(cip_series):
@@ -220,13 +219,8 @@ def main():
 
     print("Integrating WSU College mappings...")
     try:
-        # Registry filename carries a date stamp (e.g. Curricula_CIP_2026-06.xlsx), so match
-        # the newest rather than pinning a version. '~$' files are Excel lock files, not data.
-        candidates = sorted(
-            p for p in glob.glob('data/raw/crosswalks/Curricula_CIP_*.xlsx')
-            if not os.path.basename(p).startswith('~$')
-        )
-        catalog_path = candidates[-1] if candidates else None
+        # Path resolution lives in etl.common so all three callers stay in sync.
+        catalog_path = find_curriculum_registry()
         if catalog_path:
             # dtype=str is load-bearing: CIP6 parses as float64 otherwise, dropping the
             # leading zero for families 03/04/05/09 (42 of 859 rows in the 2026-06 registry).

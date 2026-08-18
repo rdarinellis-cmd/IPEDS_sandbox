@@ -1,10 +1,14 @@
 import os
+import sys
 import yaml
 import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
 import hashlib
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from etl.common import CURRICULUM_REGISTRY_GLOB, find_curriculum_registry  # noqa: E402
 
 APP_DIR = "data/app"
 RAW_DIR = "data/raw"
@@ -21,8 +25,25 @@ def load_config():
     return config
 
 def compile_dim_program(config):
-    # Load Curriculum
-    curr = pd.read_excel("dictionaries/Active_Curriculum202604.xlsx")
+    # Load Curriculum. Path resolution lives in etl.common so all three callers stay
+    # in sync. dtype=str is load-bearing: CIP6 parses as float64 otherwise, dropping
+    # the leading zero for families 03/04/05/09 (42 of 859 rows in the 2026-08 registry).
+    catalog_path = find_curriculum_registry()
+    if not catalog_path:
+        raise FileNotFoundError(
+            f"No curriculum registry matching {CURRICULUM_REGISTRY_GLOB}. "
+            "The portfolio marts cannot be built without it."
+        )
+    curr = pd.read_excel(catalog_path, dtype=str)
+
+    # The registry now ships CIP pre-split as CIP6/CIP4/CIP2. Downstream code below
+    # (and the dim_program mart) still refers to a single 'CIP' column, so alias it
+    # here rather than renaming the column at every use site.
+    curr["CIP"] = curr["CIP6"]
+
+    # CPLR Level arrives as text under dtype=str; the scope filter compares against
+    # the integers in config/portfolio.yaml, so coerce before filtering.
+    curr["CPLR Level"] = pd.to_numeric(curr["CPLR Level"], errors="coerce")
     
     # Exclude CPLR Levels
     exclude_levels = config['program_scope'].get('exclude_cplr_levels', [])

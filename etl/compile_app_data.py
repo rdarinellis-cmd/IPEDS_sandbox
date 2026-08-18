@@ -9,7 +9,6 @@ This ensures the public Streamlit app on GitHub has a tiny footprint (< 1 MB tot
 and does not require downloading or processing 300+ MB of raw census databases.
 """
 
-import glob
 import os
 import sys
 
@@ -21,11 +20,13 @@ import pyarrow.parquet as pq
 # by ingest_master.py, so put the project root on sys.path before the shared import.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from etl.common import (  # noqa: E402
+    CURRICULUM_REGISTRY_GLOB,
     MICHIGAN_UNIVERSITIES,
     PUBLIC_R1_C21BASIC,
     PUBLIC_R1_CONTROL,
     URBAN_PEER_IDS,
     WSU_NAME,
+    find_curriculum_registry,
     normalize_cip,
 )
 
@@ -46,18 +47,13 @@ def read_parquet_upper(file_path, cols):
 
 def get_wsu_college_mapping():
     """Reads the WSU Curricula Catalog and builds a dict mapping CIP to comma-separated WSU colleges."""
-    # Registry filename carries a date stamp (e.g. Curricula_CIP_2026-06.xlsx), so match the
-    # newest rather than pinning a version. '~$' files are Excel lock files, not data.
-    candidates = sorted(
-        p for p in glob.glob("data/raw/crosswalks/Curricula_CIP_*.xlsx")
-        if not os.path.basename(p).startswith("~$")
-    )
-    if not candidates:
-        print("   ⚠️ Warning: no Curricula_CIP_*.xlsx registry found in data/raw/crosswalks/. "
+    # Path resolution lives in etl.common so all three callers stay in sync.
+    catalog_path = find_curriculum_registry()
+    if not catalog_path:
+        print(f"   ⚠️ Warning: no registry matching {CURRICULUM_REGISTRY_GLOB} found. "
               "The wsu_college column will be EMPTY, which silently disables the "
               "'WSU School/College' filter on the CIP Market Share page.")
         return {}
-    catalog_path = candidates[-1]
 
     try:
         # dtype=str is load-bearing: CIP6 parses as float64 otherwise, dropping the leading

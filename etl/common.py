@@ -20,6 +20,9 @@ Streamlit pages need no bootstrap, because `streamlit run app.py` already puts t
 project root on sys.path.
 """
 
+import glob
+import os
+
 import pandas as pd
 
 # --- Wayne State brand palette (ARCHITECTURE.md section 8A) ------------------
@@ -162,3 +165,28 @@ def split_college_codes(value):
     if pd.isna(value):
         return []
     return [c.strip() for c in str(value).split(',') if c.strip()]
+
+
+# --- curriculum registry ------------------------------------------------------
+# The WSU program/CIP registry lives in dictionaries/ (tracked in git), NOT in
+# data/raw/crosswalks/ where it used to be globbed from. That move is deliberate:
+# data/raw/ is gitignored, so the registry never travelled between machines, and
+# get_wsu_college_mapping() would silently return {} -- which empties the
+# wsu_college column and disables the "WSU School/College" filter on the CIP
+# Market Share page with nothing but a printed warning. Keeping it tracked means a
+# fresh clone has it. Resolved here once so the lookup can't drift between the
+# three callers again (it already had to be fixed twice on 2026-08-17).
+CURRICULUM_REGISTRY_GLOB = "dictionaries/wsu_program_cip_*.xlsx"
+
+
+def find_curriculum_registry(pattern=CURRICULUM_REGISTRY_GLOB):
+    """Return the newest curriculum registry path, or None if none is present.
+
+    The filename carries a date stamp (wsu_program_cip_20260817.xlsx), so the most
+    recent one sorts last. Files starting with '~$' are Excel lock files, not data.
+    """
+    candidates = sorted(
+        p for p in glob.glob(pattern)
+        if not os.path.basename(p).startswith("~$")
+    )
+    return candidates[-1] if candidates else None

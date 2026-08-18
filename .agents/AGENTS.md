@@ -50,4 +50,27 @@ All data visualizations **MUST** use **Altair**. Do not use Plotly, Matplotlib, 
 ### 7. Streamlit API Deprecations
 When creating dataframes, charts, or other elements that span the full container width, **never** use the deprecated `use_container_width=True` argument. Always use `width="stretch"` (or `width="content"` if it should not span the container) as per the latest Streamlit API standards.
 
+### 8. WSU Curriculum Registry & the CPLR Export (check this every refresh)
+
+The WSU program/CIP registry is `dictionaries/wsu_program_cip_<YYYYMMDD>.xlsx`. Resolve it **only** via `find_curriculum_registry()` in `etl/common.py` — never re-glob it inline. It lives in `dictionaries/` (tracked) and **not** in `data/raw/` on purpose: the old `data/raw/crosswalks/Curricula_CIP_*.xlsx` location is git-ignored, so the file never travelled between machines and `get_wsu_college_mapping()` quietly returned `{}` — which empties `wsu_college` and disables the "WSU School/College" filter with nothing but a printed warning.
+
+**Rebuild it with `scripts/build_curriculum_registry.py`, not by hand.** The script re-asserts its own safety conditions and aborts rather than emitting a wrong registry.
+
+**Assume the next CPLR export is still non-standard.** Two defects have already reached us, and neither was visible from the filename:
+
+| What went wrong | How to check |
+|---|---|
+| `Curricula Catalog with CPLR-1.xlsx` (2026-08-17) contained **no CPLR columns at all**, despite its name | Confirm all five are present: `CPLR Rule`, `CPLR Level`, `Credential Desc`, `Length`, `Min_Credits` |
+| `CIP` arrives as an Excel **number**, so `03.0104` is stored as `30104` — the leading zero is gone before any `LEFT()` runs, relabelling family 03→30, 05→50, 09→90 (42 of 859 rows, across CLAS and CFPCA) | Zero-pad to 6 **first**, then derive `CIP4`/`CIP2`; store all three as text. Never slice the raw numeric CIP |
+
+**The current registry's CPLR is carried over, not native.** The 2026-08 catalog had no CPLR, so `CPLR Rule/Level/Credential Desc/Length` were joined from the older `Active_Curriculum202604.xlsx` by `Program`, and `Min_Credits` by `Program`+`Major`. That was only sound because `CPLR Level` and `Credential Desc` were verified strictly 1:1 per `Program` (0 of 215 programs varied). `Min_Credits` is **not** program-level — it varies by major in 57 of 215 programs — so never join it on `Program` alone.
+
+When the next export lands:
+1. If it has real CPLR columns, use them and drop the carry-over entirely — that is the goal state.
+2. If it does not, the script re-verifies the 1:1 property and **aborts** if it has broken. Do not work around that abort; get a proper export.
+3. Check the `cplr_source` column in the output. `registry` = inherited from a real row. Anything else is inferred — currently one row, `UGCBDA_UG_LS` (Bioinformatics and Data Analysis), filled from the unanimous `UGC*` convention (level 1, undergraduate certificate).
+4. Programs that are new *and* not `UGC*` are reported and left blank by design. They need a human decision, not a guess.
+
+Cross-check the row count through the scope filter before trusting a rebuild: 859 rows → 758 in-scope after `exclude_cplr_levels` (2026-08). The 2026-04 registry was 848 → 747.
+
 *Note: These instructions are loaded as workspace rules and must be adhered to by all developer agents working on this project.*
