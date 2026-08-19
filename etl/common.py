@@ -89,6 +89,18 @@ COLLEGE_NAMES = {
     'SW': 'Social Work (School of Social Work)',
 }
 
+# --- Sub-baccalaureate CIP families ------------------------------------------
+# Predominantly trained through community colleges and registered apprenticeships;
+# 4-year public university completions file does not represent this pipeline.
+SUB_BACCALAUREATE_FAMILIES = {
+    '12': 'Personal & Culinary Services',
+    '46': 'Construction Trades',
+    '47': 'Mechanic & Repair Technologies',
+    '48': 'Precision Production',
+    '49': 'Transportation & Materials Moving',
+}
+
+
 
 def normalize_cip(cip):
     """Normalize a CIP code string to XX.XXXX format with leading zeros and dot.

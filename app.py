@@ -15,6 +15,10 @@ cip_market_share = st.Page("app_pages/cip_market_share.py", title="CIP Market Sh
 nih_grants = st.Page("app_pages/nih_grants.py", title="NIH Grants", icon="🔬")
 nsf_herd = st.Page("app_pages/nsf_herd.py", title="NSF HERD Analysis", icon="🔬")
 
+# Statewide Supply & Demand Match Pages
+supply_demand_overview = st.Page("app_pages/supply_demand_overview.py", title="Supply–Demand Overview", icon="⚖️")
+supply_demand_drilldown = st.Page("app_pages/supply_demand_drilldown.py", title="Supply–Demand CIP Drill-Down", icon="🔍")
+
 # Portfolio Analysis Pages
 portfolio_methods = st.Page("app_pages/portfolio_methods.py", title="1. Methodology & Rules", icon="⚖️")
 portfolio_map = st.Page("app_pages/portfolio_map.py", title="2. Portfolio Bins Map", icon="🗺️")
@@ -28,6 +32,10 @@ portfolio_exemptions = st.Page("app_pages/portfolio_exemptions.py", title="9. Ex
 
 pg = st.navigation({
     "Overview": [overview_page],
+    "Statewide Supply & Demand": [
+        supply_demand_overview,
+        supply_demand_drilldown
+    ],
     "Institutional Analysis": [
         spending_analyzer,
         spending_portfolio_shape,
